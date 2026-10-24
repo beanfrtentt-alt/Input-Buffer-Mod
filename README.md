@@ -24,12 +24,16 @@ Copy the `.geode` file into `Geometry Dash/geode/mods/`, or drag it onto the gam
 ## Controls
 **F6** cycles OFF -> 2 -> 4 -> 8 -> 16 ticks -> OFF. Holding the key does not repeat; only a fresh press counts.
 
+## Console window (Windows)
+The first F6 press opens a separate console window titled "Input Buffer Demo". It logs each mode change, the full status line (ON/OFF, buffer size, stage, counters), and every input event (normal, held, buffered, expired). Its close button is disabled because closing a console window would close the whole game; it closes when you quit Geometry Dash. On non-Windows platforms the same lines go to the Geode log.
+
 ## Overlay (top-left during a level)
 Mod status (ON/OFF), stage (idle / ready / armed), buffer size, and counters: normal / buffered / expired inputs.
 
 ## Behavior
 - OFF: every input is passed straight to the game, untouched.
 - ON: a press made while the player is airborne is remembered for N ticks. If the player lands inside the window, the press is replayed once (as a tap if you already released). If not, it expires and is counted as expired.
+- Every buffered (replayed) click flashes the screen red for a quarter second.
 
 ## Supported versions
 Written against Geode SDK v5.11.2 and Geometry Dash 2.2081 (Windows/Android/Mac declared in `mod.json`). Adjust `mod.json` if your installed versions differ. Android/Mac builds need those platforms' toolchains and are not covered by the workflow.

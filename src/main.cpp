@@ -2,6 +2,12 @@
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/GJBaseGameLayer.hpp>
 #include <Geode/utils/Keyboard.hpp>
+#include <cstdio>
+#include <ctime>
+
+#ifdef GEODE_IS_WINDOWS
+#include <windows.h>
+#endif
 
 using namespace geode::prelude;
 
@@ -29,6 +35,57 @@ namespace {
     void resetCounters() {
         g_pending = {};
         g_bufferedCount = g_normalCount = g_expiredCount = 0;
+    }
+
+    // ---- Separate console window (Windows) ----
+    FILE* g_console = nullptr;
+
+    void openConsole() {
+#ifdef GEODE_IS_WINDOWS
+        if (g_console) return;
+        // If the process already has a console (e.g. Geode's own), AllocConsole fails
+        // and we simply write to that one through CONOUT$.
+        bool created = AllocConsole() != 0;
+        g_console = std::fopen("CONOUT$", "w");
+        if (created) {
+            SetConsoleTitleA("Input Buffer Demo");
+            // Closing this window would kill the whole game, so disable its close button.
+            if (HWND hwnd = GetConsoleWindow()) {
+                if (HMENU menu = GetSystemMenu(hwnd, FALSE)) {
+                    DeleteMenu(menu, SC_CLOSE, MF_BYCOMMAND);
+                }
+            }
+        }
+        if (g_console) {
+            std::fputs("=== Input Buffer Demo console ===\n", g_console);
+            std::fflush(g_console);
+        }
+#endif
+    }
+
+    void consoleLog(std::string const& line) {
+        if (!g_console) {
+#ifndef GEODE_IS_WINDOWS
+            log::info("[IBD] {}", line);
+#endif
+            return;
+        }
+        std::time_t t = std::time(nullptr);
+        char stamp[16];
+        std::strftime(stamp, sizeof(stamp), "%H:%M:%S", std::localtime(&t));
+        std::fprintf(g_console, "[%s] %s\n", stamp, line.c_str());
+        std::fflush(g_console);
+    }
+
+    void consoleStatus() {
+        int ticks = bufferTicks();
+        consoleLog(fmt::format(
+            "STATUS: {} | buffer: {} | stage: {} | inputs: {} normal / {} buffered / {} expired",
+            ticks == 0 ? "OFF" : "ON",
+            ticks == 0 ? "-" : fmt::format("{} ticks", ticks),
+            ticks == 0 ? "idle" : (g_pending.active ? "armed" : "ready"),
+            g_normalCount, g_bufferedCount, g_expiredCount
+        ));
     }
 }
 
@@ -60,6 +117,10 @@ class $modify(IBPlayLayer, PlayLayer) {
             if (data.key == KEY_F6 && data.action == KeyboardInputData::Action::Press) {
                 g_modeIndex = (g_modeIndex + 1) % std::size(kModes);
                 g_pending = {};
+                openConsole();   // first F6 press opens the console window
+                consoleLog(fmt::format("F6 pressed -> mode: {}",
+                    bufferTicks() == 0 ? "OFF" : fmt::format("{} ticks", bufferTicks())));
+                consoleStatus();
                 this->refreshOverlay();
             }
         });
@@ -78,6 +139,19 @@ class $modify(IBPlayLayer, PlayLayer) {
             g_normalCount, g_bufferedCount, g_expiredCount
         );
         m_fields->label->setString(text.c_str());
+    }
+
+    // Brief full-screen red tint, fades out in 0.25s. Non-blocking: it sits on the UI layer.
+    void flashRed() {
+        auto winSize = CCDirector::get()->getWinSize();
+        auto flash = CCLayerColor::create({255, 0, 0, 110}, winSize.width, winSize.height);
+        flash->setZOrder(9998);
+        m_uiLayer->addChild(flash);
+        flash->runAction(CCSequence::create(
+            CCFadeTo::create(0.25f, 0),
+            CCRemoveSelf::create(),
+            nullptr
+        ));
     }
 
     void resetLevel() {
@@ -101,11 +175,13 @@ class $modify(IBGameLayer, GJBaseGameLayer) {
         if (down) {
             if (canActNow || !player) {
                 g_normalCount++;
+                consoleLog("input processed normally");
                 GJBaseGameLayer::handleButton(down, button, isPlayer1);
             }
             else {
                 // Early press (player airborne): hold it for up to N ticks.
                 g_pending = {true, bufferTicks(), button, isPlayer1, true};
+                consoleLog(fmt::format("early press held (window: {} ticks)", bufferTicks()));
                 // Still forward it so vanilla behavior (orbs, pads, hold-jump) is unchanged.
                 GJBaseGameLayer::handleButton(down, button, isPlayer1);
             }
@@ -125,6 +201,7 @@ class $modify(IBGameLayer, GJBaseGameLayer) {
 
         auto player = g_pending.isPlayer1 ? m_player1 : m_player2;
         if (!player) { g_pending = {}; return; }
+        bool flashed = false;
 
         if (player->m_isOnGround && !player->m_isDead) {
             // Landed inside the window: replay the early press once.
@@ -137,14 +214,21 @@ class $modify(IBGameLayer, GJBaseGameLayer) {
             g_replaying = false;
             g_bufferedCount++;
             g_pending = {};
+            flashed = true;
+            consoleLog("BUFFERED input replayed on landing");
+            consoleStatus();
         }
         else if (--g_pending.ticksLeft <= 0) {
             g_expiredCount++;
             g_pending = {};
+            consoleLog("buffered input EXPIRED (no landing in window)");
+            consoleStatus();
         }
 
         if (auto pl = PlayLayer::get()) {
-            static_cast<IBPlayLayer*>(pl)->refreshOverlay();
+            auto ibl = static_cast<IBPlayLayer*>(pl);
+            ibl->refreshOverlay();
+            if (flashed) ibl->flashRed();
         }
     }
 };
