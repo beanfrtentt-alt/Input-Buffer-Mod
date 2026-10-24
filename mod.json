@@ -7,9 +7,9 @@
 	},
 	"id": "ilyaskjidaa.input-buffer-demo",
 	"name": "Input Buffer Demo",
-	"version": "v1.1.0",
+	"version": "v1.2.0",
 	"developer": "ilyaskjidaa",
-	"description": "Input-buffer demo (F6), approximate trajectory prediction, and an optional F8 Auto-Correction demonstration with an in-game overlay.",
+	"description": "Input-buffer demo (F6), approximate trajectory prediction, and an optional F8 automatic click assistant with an in-game overlay.",
 	"tags": ["gameplay", "utility"],
 	"settings": {
 		"show-trajectory": {
@@ -44,11 +44,11 @@
 		},
 		"correction-window": {
 			"type": "int",
-			"name": "Auto-Correction max delay (ticks)",
-			"description": "Largest delay Auto-Correction may add to a ground jump press (F8 mode).",
-			"default": 6,
-			"min": 1,
-			"max": 30,
+			"name": "Auto-click scan range (ticks)",
+			"description": "How far ahead (in ticks) the F8 click assistant looks for the jump window. Larger = more CPU per tick.",
+			"default": 40,
+			"min": 10,
+			"max": 100,
 			"control": { "slider": true }
 		}
 	}

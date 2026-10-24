@@ -41,20 +41,24 @@ namespace {
 
     int bufferTicks() { return kModes[g_modeIndex]; }
 
-    // ---- F8 Auto-Correction (independent of F6; OFF by default) ----
+    // ---- F8 Auto-Correction: automatic click assistant (independent of F6; OFF by default) ----
     bool g_acOn = false;
 
-    struct AutoPending {
-        bool active = false;
-        int fireTick = 0;
-        int button = 1;
-        bool userHolding = true;
-        int delay = 0;
+    struct AutoState {
+        bool cooldown = false;         // an auto click is in flight; no new decisions until landing/verdict
+        bool airborneSeen = false;     // player has left the ground since the auto click
+        bool awaitingConfirm = false;  // waiting to see whether the game really processed the click
+        int  issuedTick = -1;
+        bool holding = false;          // we pressed the button and still owe a release
+        int  releaseTick = 0;
     };
-    AutoPending g_acPending;
-    bool g_acConsidered = false;
-    bool g_acIssued = false;
-    std::string g_acReason = "-";
+    AutoState g_auto;
+    int g_autoConfirmed = 0;           // auto clicks the game demonstrably processed
+    int g_autoUnconfirmed = 0;         // auto clicks with no observable effect
+    std::string g_acStatus = "-";      // human-readable current state of the assistant
+    std::string g_acLastKey;           // for logging state changes only (no per-tick spam)
+    std::vector<ibd::Obstacle> g_obs;  // obstacles ahead, refreshed once per rendered frame
+    constexpr int kClickGrace = 3;     // a player click this recent counts as "registered"
 
     // ---- Tick / kinematics / prediction ----
     int g_tick = 0;
@@ -84,15 +88,16 @@ namespace {
 
     void clearPendings() {
         g_pending = {};
-        g_acPending = {};
+        g_auto = {};
     }
 
     void resetCounters() {
         clearPendings();
         g_bufferedCount = g_normalCount = g_expiredCount = g_autoCount = 0;
         g_predEvaluated = g_predWithin = g_deathsWarned = g_deathsUnwarned = 0;
-        g_acConsidered = g_acIssued = false;
-        g_acReason = "-";
+        g_autoConfirmed = g_autoUnconfirmed = 0;
+        g_acStatus = "-";
+        g_acLastKey.clear();
     }
 
     void resetTracking() {
@@ -103,6 +108,7 @@ namespace {
         g_pred = {};
         g_due.clear();
         g_trail.clear();
+        g_obs.clear();
         g_recording = false;
         g_rec.clear();
     }
@@ -233,7 +239,7 @@ namespace {
         // Mode change: drop anything tied to the old mode.
         if (mode != g_lastMode) {
             if (g_lastMode != ibd::Mode::Unknown) {
-                if (g_pending.active || g_acPending.active) {
+                if (g_pending.active || g_auto.holding || g_auto.cooldown) {
                     autoLog(fmt::format("mode changed ({} -> {}): pending inputs cancelled",
                         ibd::modeName(g_lastMode), ibd::modeName(mode)));
                 }
@@ -308,10 +314,126 @@ namespace {
     }
 }
 
+namespace {
+    // Releases a button we pressed ourselves, unless the player is holding it.
+    void autoReleaseNow(GJBaseGameLayer* gl) {
+        if (g_auto.holding && !g_p1Held) {
+            g_replaying = true;
+            gl->handleButton(false, 1, true);
+            g_replaying = false;
+        }
+        g_auto.holding = false;
+    }
+
+    // One decision per game tick, based on live game state (never a blind timer).
+    // Returns true if an automatic click was issued on this tick.
+    bool autoClickStep(GJBaseGameLayer* gl) {
+        auto p = gl->m_player1;
+
+        // (a) Release our own press after 2 ticks (skipped if the player is holding the button).
+        if (g_auto.holding && g_tick >= g_auto.releaseTick) autoReleaseNow(gl);
+
+        // (b) Honest feedback: was the click actually processed? Judge only by what the game did.
+        if (g_auto.awaitingConfirm) {
+            float up = g_kin.upsideDown ? -1.f : 1.f;
+            bool tookOff = p && !p->m_isDead && !p->m_isOnGround && g_kin.valid && g_kin.dy * up > 1.f;
+            if (tookOff) {
+                g_autoConfirmed++;
+                g_auto.awaitingConfirm = false;
+                autoLog(fmt::format("CONFIRMED: player left the ground {} ticks after the automated input",
+                    g_tick - g_auto.issuedTick));
+            } else if (g_tick - g_auto.issuedTick > 6) {
+                g_autoUnconfirmed++;
+                g_auto.awaitingConfirm = false;
+                g_auto.cooldown = false;   // nothing happened, so no jump is "in flight"
+                autoLog("NOT CONFIRMED: no takeoff observed after the automated input (game may not have processed it)");
+            }
+        }
+        if (g_auto.cooldown) {
+            if (g_kin.valid && !g_kin.grounded) g_auto.airborneSeen = true;
+            if (g_kin.valid && g_kin.grounded && g_auto.airborneSeen) g_auto.cooldown = false;
+        }
+
+        if (!g_acOn)               { g_acStatus = "off"; return false; }
+        if (!p || p->m_isDead)     { g_acStatus = "player dead: idle"; return false; }
+        if (g_auto.cooldown)       { g_acStatus = "auto click already issued for this jump"; return false; }
+        if (!g_kin.valid)          { g_acStatus = "UNAVAILABLE: no player data yet"; return false; }
+
+        // Game-state inputs for the decision: a fresh straight-ahead prediction + learned jump arc.
+        std::vector<ibd::Obstacle> hazards;
+        hazards.reserve(g_obs.size());
+        for (auto const& o : g_obs) {
+            if (o.hazard && o.box.x1 >= g_kin.x - 40.f) hazards.push_back(o);
+        }
+        auto profile = g_profile;
+        if (std::fabs(profile.speedKey - p->m_playerSpeed) > 0.01f) profile.valid = false;
+        auto straight = ibd::predict(g_kin, g_obs, 150);
+        auto dec = ibd::decideJump(g_kin, straight, profile, hazards, windowSetting());
+
+        bool playerClick = g_p1Held || (g_tick - g_lastPressTick <= kClickGrace);
+        std::string key;
+        bool issue = false;
+
+        switch (dec.need) {
+            case ibd::Need::Unavailable:
+                g_acStatus = "UNAVAILABLE: " + dec.reason;
+                key = "U" + dec.reason;
+                break;
+            case ibd::Need::NoHazard:
+                g_acStatus = "no click needed (" + dec.reason + ")";
+                break;
+            case ibd::Need::Wait:
+                g_acStatus = playerClick ? "PLAYER CLICK REGISTERED"
+                                         : "CLICK EXPECTED: " + dec.reason;
+                key = playerClick ? "Wc" : "W";
+                break;
+            case ibd::Need::JumpNow:
+                if (playerClick) {
+                    g_acStatus = "PLAYER CLICK REGISTERED (no automated input)";
+                    key = "Jc";
+                } else {
+                    g_acStatus = "WOULD BE MISSED: issuing automated click";
+                    key = "J";
+                    issue = true;
+                }
+                break;
+            case ibd::Need::Missed:
+                g_acStatus = "WINDOW MISSED: " + dec.reason;
+                key = "M";
+                break;
+        }
+        if (!key.empty() && key != g_acLastKey) {   // log state changes only
+            autoLog(g_acStatus);
+            g_acLastKey = key;
+        } else if (key.empty()) {
+            g_acLastKey.clear();
+        }
+
+        if (!issue) return false;
+
+        // Issue exactly one input. g_replaying makes our hook pass it straight to the game.
+        g_replaying = true;
+        gl->handleButton(true, 1, true);
+        g_replaying = false;
+        g_autoCount++;
+        g_lastPressTick = g_tick;   // lets the jump-arc learner see this jump too
+        g_auto.cooldown = true;
+        g_auto.airborneSeen = false;
+        g_auto.awaitingConfirm = true;
+        g_auto.issuedTick = g_tick;
+        g_auto.holding = true;
+        g_auto.releaseTick = g_tick + 2;
+        autoLog(fmt::format("AUTOMATED INPUT issued at x={:.1f}, y={:.1f} (unconfirmed until takeoff is observed)",
+            g_kin.x, g_kin.y));
+        return true;
+    }
+}
+
 // =========================================================================
 // PlayLayer: overlay ("dashboard"), trajectory rendering, keys, death/reset
 // =========================================================================
 class $modify(IBPlayLayer, PlayLayer) {
+public:
     struct Fields {
         CCLabelBMFont* label = nullptr;
         CCLabelBMFont* banner = nullptr;
@@ -371,7 +493,12 @@ class $modify(IBPlayLayer, PlayLayer) {
             }
             else if (data.key == KEY_F8) {
                 g_acOn = !g_acOn;
-                if (!g_acOn) g_acPending = {};   // OFF stops automated inputs immediately
+                if (!g_acOn) {
+                    autoReleaseNow(this);   // OFF stops automated inputs immediately
+                    g_auto = {};
+                    g_acStatus = "off";
+                }
+                g_acLastKey.clear();
                 openConsole();
                 autoLog(fmt::format("F8 pressed -> Auto-Correction {}", g_acOn ? "ON" : "OFF"));
                 consoleStatus();
@@ -400,14 +527,16 @@ class $modify(IBPlayLayer, PlayLayer) {
 
         auto text = fmt::format(
             "BUFFER (F6): {} | stage: {}\n"
-            "AUTO-CORRECTION (F8): {} | considered: {} | issued: {}\n"
-            "reason: {}\n"
+            "AUTO-CORRECTION: {}  [F8]\n"
+            "status: {}\n"
+            "auto inputs: {} issued / {} confirmed by game / {} unconfirmed\n"
             "{}\n"
             "inputs: {} normal / {} buffered / {} AUTO / {} expired\n"
             "predictions within {:.0f}u after 10 ticks: {}/{} ({:.0f}%) | deaths warned/unwarned: {}/{}",
             bufferLabel(), stage,
-            g_acOn ? "ON" : "OFF", g_acConsidered ? "yes" : "no", g_acIssued ? "yes" : "no",
-            g_acReason,
+            g_acOn ? "ON" : "OFF",
+            g_acStatus,
+            g_autoCount, g_autoConfirmed, g_autoUnconfirmed,
             predLine,
             g_normalCount, g_bufferedCount, g_autoCount, g_expiredCount,
             kOkDist, g_predWithin, g_predEvaluated, pct, g_deathsWarned, g_deathsUnwarned
@@ -471,12 +600,15 @@ class $modify(IBPlayLayer, PlayLayer) {
         bool show = Mod::get()->getSettingValue<bool>("show-trajectory");
         if ((show || g_acOn || debugMode()) && g_kin.valid && !m_player1->m_isDead) {
             int horizon = horizonSetting();
-            float reach = std::max(std::fabs(g_kin.dx), 0.5f) * horizon + 60.f;
-            auto obs = collectObstacles(this, g_kin.x - 40.f, g_kin.x + reach);
-            g_pred = ibd::predict(g_kin, obs, horizon);
+            // Look far enough ahead for both the drawn path and the click assistant.
+            int lookahead = std::max(horizon, 150);
+            float reach = std::max(std::fabs(g_kin.dx), 0.5f) * lookahead + 60.f;
+            g_obs = collectObstacles(this, g_kin.x - 40.f, g_kin.x + reach);
+            g_pred = ibd::predict(g_kin, g_obs, horizon);
             g_predTick = g_tick;
         } else if (!g_kin.valid) {
             g_pred = {};
+            g_obs.clear();
         }
         this->drawTrajectory();
         this->refreshOverlay();
@@ -491,7 +623,7 @@ class $modify(IBPlayLayer, PlayLayer) {
                 consoleLog(fmt::format("DEBUG death: prediction {} (AutoCorrection {})",
                     warned ? "had warned of a hazard" : "had NOT warned", g_acOn ? "ON" : "OFF"));
             }
-            if (g_pending.active || g_acPending.active) {
+            if (g_pending.active || g_auto.holding || g_auto.cooldown) {
                 autoLog("player died: pending inputs cancelled");
             }
             clearPendings();
@@ -522,6 +654,7 @@ class $modify(IBPlayLayer, PlayLayer) {
 // GJBaseGameLayer: input interception (F6 buffer, F8 correction) + per-tick sampling
 // =========================================================================
 class $modify(IBGameLayer, GJBaseGameLayer) {
+public:
     void handleButton(bool down, int button, bool isPlayer1) {
         // Our own replayed/auto inputs are never re-processed.
         if (g_replaying) {
@@ -534,45 +667,6 @@ class $modify(IBGameLayer, GJBaseGameLayer) {
         if (isPlayer1 && button == 1) {
             g_p1Held = down;
             if (down) g_lastPressTick = g_tick;
-        }
-
-        // ---------------- F8 Auto-Correction (independent of F6) ----------------
-        if (g_acOn && isPlayer1 && button == 1 && player) {
-            if (down) {
-                if (g_acPending.active) {
-                    // One intended action must produce one input: swallow extra presses.
-                    g_acConsidered = true;
-                    g_acReason = "duplicate press suppressed (correction already scheduled)";
-                    autoLog(g_acReason);
-                    return;
-                }
-                if (player->m_isOnGround && !player->m_isDead && g_kin.valid && g_kin.mode == ibd::Mode::Cube) {
-                    auto profile = g_profile;
-                    if (std::fabs(profile.speedKey - player->m_playerSpeed) > 0.01f) profile.valid = false;
-                    int maxDelay = windowSetting();
-                    float reach = std::max(std::fabs(g_kin.dx), 0.5f) * (maxDelay + (int)profile.dys.size() + 5) + 60.f;
-                    auto obs = collectObstacles(this, g_kin.x - 40.f, g_kin.x + reach);
-                    auto c = ibd::findCorrection(g_kin, profile, obs, maxDelay);
-                    g_acConsidered = true;
-                    g_acIssued = false;
-                    g_acReason = c.reason;
-                    if (c.found) {
-                        // Swallow the early press; it is re-issued exactly once, `delay` ticks later.
-                        g_acPending = {true, g_tick + c.delay, button, true, c.delay};
-                        autoLog(fmt::format("correction considered: {} (user press held back)", c.reason));
-                        return;
-                    }
-                    autoLog(fmt::format("correction considered: {} (press passed through unchanged)", c.reason));
-                } else {
-                    g_acConsidered = false;
-                    g_acReason = "not applicable (airborne, dead, or mode not cube)";
-                }
-            }
-            else if (g_acPending.active) {
-                // User released a press we are still holding back: remember it, swallow the release.
-                g_acPending.userHolding = false;
-                return;
-            }
         }
 
         // ---------------- F6 input buffer ----------------
@@ -618,33 +712,8 @@ class $modify(IBGameLayer, GJBaseGameLayer) {
 
         bool flashBuffered = false, flashAuto = false;
 
-        // ---- Auto-Correction: fire the held-back press exactly once ----
-        if (g_acPending.active) {
-            auto p = m_player1;
-            if (!g_acOn) {
-                g_acPending = {};   // OFF: stop immediately, issue nothing
-            }
-            else if (!p || p->m_isDead || modeOf(p) != ibd::Mode::Cube || !p->m_isOnGround) {
-                g_acReason = "cancelled: player state changed before the corrected input";
-                autoLog(g_acReason);
-                g_acPending = {};
-            }
-            else if (g_tick >= g_acPending.fireTick) {
-                g_replaying = true;
-                GJBaseGameLayer::handleButton(true, g_acPending.button, true);
-                if (!g_acPending.userHolding) {
-                    GJBaseGameLayer::handleButton(false, g_acPending.button, true);
-                }
-                g_replaying = false;
-                g_autoCount++;
-                g_acIssued = true;
-                g_lastPressTick = g_tick;
-                autoLog(fmt::format("AUTOMATED INPUT issued (delayed {} ticks) at x={:.1f}, y={:.1f}",
-                    g_acPending.delay, g_kin.x, g_kin.y));
-                g_acPending = {};
-                flashAuto = true;
-            }
-        }
+        // ---- F8 click assistant: decides from live game state, every tick ----
+        if (autoClickStep(this)) flashAuto = true;
 
         // ---- F6 buffer: replay an early press once the player has landed ----
         if (bufferTicks() != 0 && g_pending.active) {

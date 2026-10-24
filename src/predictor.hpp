@@ -63,6 +63,8 @@ struct Prediction {
     std::vector<Pt> pts;          // pts[i] = predicted position i+1 ticks ahead
     int hazardTick = -1;          // -1 = none inside the horizon
     Pt hazardAt;
+    bool hitSolid = false;        // the predicted collision is with a solid block, not a hazard
+    Box hitBox;                   // the obstacle that was hit (unshrunk)
     int landTick = -1;            // -1 = none inside the horizon (or already grounded)
     Pt landAt;
     int nextActionTick = 0;       // ticks until a jump/click is expected to be possible
@@ -112,14 +114,19 @@ inline Prediction predict(Kin const& k, std::vector<Obstacle> const& obs, int ho
         if (r.hazardTick < 0) {
             Box pb = playerBox(x, y);
             for (auto const& o : obs) {
-                Box ob = o.hazard ? hazardBox(o.box) : o.box;
+                // Solids are shrunk slightly so standing exactly on a block's top
+                // surface is not reported as a collision.
+                Box ob = o.hazard ? hazardBox(o.box)
+                                  : Box{o.box.x0 + 2.f, o.box.y0 + 2.f, o.box.x1 - 2.f, o.box.y1 - 2.f};
                 if (!overlaps(pb, ob)) continue;
-                bool landingOnSolid = !o.hazard && ((gdir < 0 && dy <= 0) || (gdir > 0 && dy >= 0));
+                // Only a genuinely falling player can "land" on a solid.
+                bool landingOnSolid = !o.hazard && ((gdir < 0 && dy < -0.01f) || (gdir > 0 && dy > 0.01f));
                 if (landingOnSolid && r.landTick < 0) {
                     r.landTick = i; r.landAt = {x, y};
                     dy = 0; ay = 0;
                 } else if (o.hazard || !landingOnSolid) {
                     r.hazardTick = i; r.hazardAt = {x, y};
+                    r.hitSolid = !o.hazard; r.hitBox = o.box;
                 }
                 break;
             }
@@ -138,51 +145,102 @@ struct JumpProfile {
     bool valid = false;
 };
 
-// Would a jump started `delay` ticks from now (flat run until then) avoid every hazard?
-inline bool jumpClears(Kin const& k, JumpProfile const& p, std::vector<Obstacle> const& obs, int delay) {
-    if (!k.valid || !p.valid || !k.grounded) return false;
+struct JumpOutcome { bool clears = false; float endX = 0; };
+
+// Simulates a jump started `delay` ticks from now (flat run until then) using the learned
+// profile. `clears` = no hazard overlap anywhere along the arc; `endX` = x at the end of it.
+inline JumpOutcome simulateJump(Kin const& k, JumpProfile const& p,
+                                std::vector<Obstacle> const& hazards, int delay) {
+    JumpOutcome out;
+    if (!k.valid || !p.valid || !k.grounded) return out;
     float up = k.upsideDown ? -1.f : 1.f;
     float x = k.x, y = k.y;
     int total = delay + (int)p.dys.size();
+    out.clears = true;
     for (int i = 1; i <= total; i++) {
         x += k.dx;
         if (i > delay) y += p.dys[(size_t)(i - delay - 1)] * up;
         Box pb = playerBox(x, y);
-        for (auto const& o : obs) {
-            if (o.hazard && overlaps(pb, hazardBox(o.box))) return false;
+        for (auto const& o : hazards) {
+            if (o.hazard && overlaps(pb, hazardBox(o.box))) { out.clears = false; out.endX = x; return out; }
         }
     }
-    return true;
+    out.endX = x;
+    return out;
 }
 
-struct Correction {
-    bool found = false;
-    int delay = 0;
-    bool immediateClears = false;
-    std::string reason;
+inline bool jumpClears(Kin const& k, JumpProfile const& p, std::vector<Obstacle> const& hazards, int delay) {
+    return simulateJump(k, p, hazards, delay).clears;
+}
+
+// What should the click assistant do on this tick?
+enum class Need {
+    Unavailable,  // required game-state information is missing; cannot judge
+    NoHazard,     // nothing on the current path needs a jump
+    Wait,         // a jump will be needed; the player still has time to click (or window not open yet)
+    JumpNow,      // last safe tick: a jump now is predicted to clear, one tick later is not
+    Missed        // a jump is needed but no jump from here is predicted to clear
 };
 
-// Looks for the smallest delay (0..maxDelay) at which a jump is predicted to clear all hazards.
-inline Correction findCorrection(Kin const& k, JumpProfile const& p,
-                                 std::vector<Obstacle> const& obs, int maxDelay) {
-    Correction c;
-    if (!k.valid)         { c.reason = "no player data"; return c; }
-    if (k.mode != Mode::Cube) { c.reason = "mode not supported (cube only)"; return c; }
-    if (!k.grounded)      { c.reason = "player not grounded"; return c; }
-    if (!p.valid)         { c.reason = "no jump profile yet (complete one normal jump first)"; return c; }
-    if (jumpClears(k, p, obs, 0)) {
-        c.immediateClears = true; c.reason = "immediate jump predicted safe; no correction needed";
-        return c;
+struct Decision {
+    Need need = Need::Unavailable;
+    std::string reason;
+    int windowOpensIn = -1;    // ticks until a jump becomes safe (Wait, not open yet)
+    int windowClosesIn = -1;   // ticks until the last safe moment (Wait, window open)
+};
+
+// `straight` must be predict() of the same Kin (player keeps going straight, no input).
+// `hazards` = obstacles ahead (hazards only matter). `maxScan` bounds the search in ticks.
+inline Decision decideJump(Kin const& k, Prediction const& straight, JumpProfile const& p,
+                           std::vector<Obstacle> const& hazards, int maxScan) {
+    Decision d;
+    if (!k.valid)                 { d.reason = "no player data yet"; return d; }
+    if (k.mode != Mode::Cube)     { d.reason = std::string("mode not supported (") + modeName(k.mode) + "); cube only"; return d; }
+    if (!k.grounded)              { d.reason = "airborne: no jump available"; return d; }
+    if (!p.valid)                 { d.reason = "no jump profile yet: do one normal clicked jump first"; return d; }
+    if (!straight.valid)          { d.reason = "no prediction available"; return d; }
+    if (straight.hazardTick < 0)  { d.need = Need::NoHazard; d.reason = "no hazard on current path"; return d; }
+    if (straight.hitSolid)        { d.reason = "path blocked by a solid block; only hazards (spikes/saws) are supported"; return d; }
+
+    maxScan = std::clamp(maxScan, 2, 100);
+    // Only start judging once the hazard is within (scan range + one jump arc); further out
+    // the window is simply not in range yet.
+    int reach = maxScan + (int)p.dys.size();
+    if (straight.hazardTick > reach) {
+        d.need = Need::Wait;
+        d.reason = "hazard in ~" + std::to_string(straight.hazardTick) + " ticks; jump window not in scan range yet";
+        return d;
     }
-    for (int d = 1; d <= maxDelay; d++) {
-        if (jumpClears(k, p, obs, d)) {
-            c.found = true; c.delay = d;
-            c.reason = "immediate jump predicted to hit a hazard; delaying " + std::to_string(d) + " ticks predicted to clear";
-            return c;
+    // A jump delayed past the tick of contact can never clear, so this search is complete.
+    int limit = std::max(straight.hazardTick, 1);
+    float passX = hazardBox(straight.hitBox).x1 + kPlayerHalf;   // landing must be past the hazard
+    auto ok = [&](int dl) {
+        auto o = simulateJump(k, p, hazards, dl);
+        return o.clears && o.endX >= passX;
+    };
+
+    if (ok(0)) {
+        if (!ok(1)) {
+            d.need = Need::JumpNow; d.windowClosesIn = 0;
+            d.reason = "last safe tick: waiting one more tick is predicted to fail";
+        } else {
+            int e = 1;
+            while (e < limit && ok(e + 1)) e++;
+            d.need = Need::Wait; d.windowClosesIn = e;
+            d.reason = "jump window open; closes in ~" + std::to_string(e) + " ticks";
+        }
+        return d;
+    }
+    for (int dl = 1; dl <= limit; dl++) {
+        if (ok(dl)) {
+            d.need = Need::Wait; d.windowOpensIn = dl;
+            d.reason = "jump window opens in ~" + std::to_string(dl) + " ticks";
+            return d;
         }
     }
-    c.reason = "no safe delay found within window";
-    return c;
+    d.need = Need::Missed;
+    d.reason = "no jump from here is predicted to clear (window passed or hazard too wide)";
+    return d;
 }
 
 } // namespace ibd
