@@ -1,0 +1,14 @@
+{
+	"geode": "5.11.2",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081"
+	},
+	"id": "ilyaskjidaa.input-buffer-demo",
+	"name": "Input Buffer Demo",
+	"version": "v1.0.0",
+	"developer": "ilyaskjidaa",
+	"description": "Demonstrates early-input buffering with an F6 toggle and an in-game status overlay.",
+	"tags": ["gameplay", "utility"]
+}
