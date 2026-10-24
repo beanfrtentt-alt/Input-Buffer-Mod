@@ -13,7 +13,7 @@ using namespace geode::prelude;
 
 namespace {
     // Shared state. Only touched from the main (cocos) thread.
-    constexpr int kModes[] = {0, 2, 4, 8, 16};   // 0 == OFF
+    constexpr int kModes[] = {0, 2, 4, 8, 16, 32, 64};   // 0 == OFF
     int g_modeIndex = 0;
 
     struct PendingPress {

@@ -22,7 +22,7 @@ The package is written to `build/ilyaskjidaa.input-buffer-demo.geode`.
 Copy the `.geode` file into `Geometry Dash/geode/mods/`, or drag it onto the game window, then restart.
 
 ## Controls
-**F6** cycles OFF -> 2 -> 4 -> 8 -> 16 ticks -> OFF. Holding the key does not repeat; only a fresh press counts.
+**F6** cycles OFF -> 2 -> 4 -> 8 -> 16 -> 32 -> 64 ticks -> OFF. Holding the key does not repeat; only a fresh press counts.
 
 ## Console window (Windows)
 The first F6 press opens a separate console window titled "Input Buffer Demo". It logs each mode change, the full status line (ON/OFF, buffer size, stage, counters), and every input event (normal, held, buffered, expired). Its close button is disabled because closing a console window would close the whole game; it closes when you quit Geometry Dash. On non-Windows platforms the same lines go to the Geode log.
