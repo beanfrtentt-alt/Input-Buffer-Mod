@@ -7,8 +7,49 @@
 	},
 	"id": "ilyaskjidaa.input-buffer-demo",
 	"name": "Input Buffer Demo",
-	"version": "v1.0.0",
+	"version": "v1.1.0",
 	"developer": "ilyaskjidaa",
-	"description": "Demonstrates early-input buffering with an F6 toggle and an in-game status overlay.",
-	"tags": ["gameplay", "utility"]
+	"description": "Input-buffer demo (F6), approximate trajectory prediction, and an optional F8 Auto-Correction demonstration with an in-game overlay.",
+	"tags": ["gameplay", "utility"],
+	"settings": {
+		"show-trajectory": {
+			"type": "bool",
+			"name": "Show predicted trajectory",
+			"description": "Draw the dashed predicted path, predicted collisions and landing points. Predictions are approximate.",
+			"default": true
+		},
+		"horizon": {
+			"type": "int",
+			"name": "Prediction horizon (ticks)",
+			"description": "How many game ticks ahead to predict. Larger values cost more CPU and are less accurate.",
+			"default": 60,
+			"min": 10,
+			"max": 240,
+			"control": { "slider": true }
+		},
+		"detail": {
+			"type": "int",
+			"name": "Visualization detail",
+			"description": "1 = path only, 2 = path + collision/landing markers, 3 = also tick dots.",
+			"default": 2,
+			"min": 1,
+			"max": 3,
+			"control": { "slider": true }
+		},
+		"debug-mode": {
+			"type": "bool",
+			"name": "Debug mode",
+			"description": "Draw the actual player trail (green) next to the prediction and log prediction discrepancies and deaths to the console.",
+			"default": false
+		},
+		"correction-window": {
+			"type": "int",
+			"name": "Auto-Correction max delay (ticks)",
+			"description": "Largest delay Auto-Correction may add to a ground jump press (F8 mode).",
+			"default": 6,
+			"min": 1,
+			"max": 30,
+			"control": { "slider": true }
+		}
+	}
 }
