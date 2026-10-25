@@ -96,8 +96,12 @@ void Manager::onLevelExit() {
 
 void Manager::emergencyStop() {
     if (!m_enabled) return;
-    InputController::get().reset();
-    BufferManager::get().clearAll();
+
+    // F8 is a true stop, not just a one-frame input flush. If m_enabled stays
+    // true, runPipeline() would immediately plan and queue inputs again.
+    // Route through setEnabled() so the setting is persisted and all pending
+    // inputs are cleared using the same shutdown path as the menu toggle.
+    setEnabled(false);
     setStatus(Status::Paused);
 }
 
