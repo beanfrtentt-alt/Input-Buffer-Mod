@@ -98,7 +98,14 @@ public:
         bool p1Release = false;
         bool p2Release = false;
     };
-    DrainResult drain(int64_t currentFrame);
+    // `p1Ready` / `p2Ready` are jump opportunities for tap gamemodes
+    // (typically PlayerObject::m_isOnGround). Hold gamemodes ignore this
+    // and apply as soon as the input is queued.
+    DrainResult drain(int64_t currentFrame, bool p1Ready = true, bool p2Ready = true);
+
+    bool wasApplied(bool isPlayer2) const {
+        return m_applied[isPlayer2 ? 1 : 0];
+    }
 
     // Explicit release (called when the user releases the key or AG stops).
     void releaseInput(bool isPlayer2, int64_t currentFrame);
@@ -132,6 +139,7 @@ private:
     std::array<BufferProfile, 2> m_profiles;
     std::array<Gamemode, 2>       m_activeGamemode;
     std::array<std::optional<BufferedInput>, 2> m_pendingInputs;
+    std::array<bool, 2>           m_applied { false, false };
 };
 
 } // namespace spoon

@@ -6,7 +6,8 @@
  *  2. Trigger the Assisted Gameplay emergency-stop key (F8 by default).
  *  3. Consume those keys so GD's default menu doesn't also see them.
  *
- * Implemented via Geode v5's `$modify` on `CCKeyboardDispatcher`.
+ * Menu and emergency-stop keys are bound through Geode keybind settings
+ * (`listenForKeybindSettingPresses` in main.cpp).
  */
 #pragma once
 #include <Geode/Geode.hpp>

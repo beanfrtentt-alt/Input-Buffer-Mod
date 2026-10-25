@@ -1,7 +1,7 @@
 /**
  * SpoonClient / Hooks/BaseGameLayerHook.hpp
  *
- * Hooks the GJBaseGameLayer destructor via Geode v5's `$modify` macro.
+ * Hooks GJBaseGameLayer::handleButton and ::update via `$modify`.
  * This is a defensive hook — the PlayLayer::onQuit hook already cleans
  * everything up, but if a level is destroyed via an unusual path (e.g.,
  * a quick-edit jump or another mod's intervention) this destructor hook

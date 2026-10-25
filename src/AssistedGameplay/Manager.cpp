@@ -52,6 +52,10 @@ void Manager::setEnabled(bool enabled) {
         setStatus(Status::Idle);
     } else {
         RecoveryManager::get().reset();
+        if (auto* pl = PlayLayer::get()) {
+            LevelAnalyzer::get().rebuild(pl);
+            BufferManager::get().onLevelStart();
+        }
         setStatus(Status::Ready);
         if (Settings::get().ag().showOverlay)
             OverlayUI::get().show();

@@ -9,7 +9,6 @@
 #include "OverlayUI.hpp"
 #include <Geode/Geode.hpp>
 #include <Geode/binding/PlayLayer.hpp>
-#include <Geode/binding/GameStatsManager.hpp>
 #include <cstdio>
 #include <cstring>
 

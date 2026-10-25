@@ -36,11 +36,11 @@ private:
     void onLookaheadPlus(cocos2d::CCObject*);
     void onEmergencyStop(cocos2d::CCObject*);
 
-    cocos2d::CCMenuItemToggler* m_enableToggle = nullptr;
+    CCMenuItemToggler* m_enableToggle = nullptr;
     cocos2d::CCLabelBMFont*     m_strategyLabel = nullptr;
     cocos2d::CCLabelBMFont*     m_lookaheadLabel = nullptr;
-    cocos2d::CCMenuItemToggler* m_overlayToggle = nullptr;
-    cocos2d::CCMenuItemToggler* m_debugToggle    = nullptr;
+    CCMenuItemToggler* m_overlayToggle = nullptr;
+    CCMenuItemToggler* m_debugToggle    = nullptr;
     cocos2d::CCLabelBMFont*     m_statusLabel   = nullptr;
     cocos2d::CCLabelBMFont*     m_reasonLabel   = nullptr;
 };

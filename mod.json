@@ -1,14 +1,14 @@
 {
-    "geode":       "$GEODE_VERSION",
+    "geode":       "5.11.2",
     "gd":          { "win": "2.2081", "android": "2.2081", "mac": "2.2081", "ios": "2.2081" },
     "version":     "2.0.0",
     "id":          "dev.spoonclient.mod",
     "name":        "Spoon Client",
     "developer":   "Spoon Client Team",
     "description": "Geometry Dash 2.2081 gameplay toolkit: F6 settings menu, per-gamemode input buffering, and a working Assisted Gameplay automation system.",
-    "homepage":    "https://github.com/spoonclient/spoon-client",
-    "repository":  "https://github.com/spoonclient/spoon-client",
-    "issues":      { "url": "https://github.com/spoonclient/spoon-client/issues" },
+    "homepage":    "https://github.com/beanfrtentt-alt/Input-Buffer-Mod",
+    "repository":  "https://github.com/beanfrtentt-alt/Input-Buffer-Mod",
+    "issues":      { "url": "https://github.com/beanfrtentt-alt/Input-Buffer-Mod/issues" },
     "tags":        [ "gameplay", "input", "automation", "menu", "tools" ],
     "dependencies": {
         "geode.node-ids": ">=v1.23.3"
@@ -21,34 +21,36 @@
         },
         "menuKey": {
             "default": "F6",
-            "type": "key",
+            "type": "keybind",
             "name": "Open / Close Menu",
-            "desc": "Key that opens the Spoon Client menu."
+            "description": "Key that opens the Spoon Client menu.",
+            "category": "universal"
         },
         "agEmergencyStopKey": {
             "default": "F8",
-            "type": "key",
+            "type": "keybind",
             "name": "Assisted Gameplay Emergency Stop",
-            "desc": "Immediately disables Assisted Gameplay while in gameplay."
+            "description": "Immediately disables Assisted Gameplay while in gameplay.",
+            "category": "gameplay"
         },
         "agEnabled": {
             "default": false,
             "type": "bool",
             "name": "Assisted Gameplay Enabled",
-            "desc": "When enabled, Spoon Client attempts to play the current level automatically. Toggle this in-game with the F6 menu."
+            "description": "When enabled, Spoon Client attempts to play the current level automatically. Toggle this in-game with the F6 menu."
         },
         "agStrategy": {
             "default": "receding-horizon",
             "type": "string",
             "name": "Assisted Gameplay Strategy",
-            "desc": "receding-horizon = look-ahead obstacle avoidance; static-analysis = use precomputed object layout.",
-            "options": { "receding-horizon": "Receding Horizon", "static-analysis": "Static Level Analysis" }
+            "description": "receding-horizon = look-ahead obstacle avoidance; static-analysis = use precomputed object layout.",
+            "one-of": ["receding-horizon", "static-analysis"]
         },
         "agLookaheadFrames": {
             "default": 18,
             "type": "int",
             "name": "Assisted Gameplay Lookahead (frames)",
-            "desc": "Number of gameplay frames (~1/240 s each in GD physics) to look ahead when planning inputs.",
+            "description": "Number of gameplay frames (~1/240 s each in GD physics) to look ahead when planning inputs.",
             "min": 4,
             "max": 90
         },
@@ -56,13 +58,13 @@
             "default": true,
             "type": "bool",
             "name": "Show Assisted Gameplay Overlay",
-            "desc": "Displays a small status indicator during gameplay."
+            "description": "Displays a small status indicator during gameplay."
         },
         "agShowDebug": {
             "default": false,
             "type": "bool",
             "name": "Show Assisted Gameplay Debug Logs",
-            "desc": "Spammy — only enable when troubleshooting."
+            "description": "Spammy — only enable when troubleshooting."
         },
 
         "bufferCubeEnabled":     { "default": true,  "type": "bool",   "name": "Cube Buffer Enabled" },

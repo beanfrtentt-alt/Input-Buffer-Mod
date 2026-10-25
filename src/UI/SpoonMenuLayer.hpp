@@ -46,8 +46,8 @@ class SpoonMenuLayer : public cocos2d::CCLayer {
 public:
     static SpoonMenuLayer* create();
     bool init() override;
-    void keyDown(cocos2d::enumKeyCodes key) override;
-    void keyUp(cocos2d::enumKeyCodes key) override;
+    void keyDown(cocos2d::enumKeyCodes key, double timestamp) override;
+    void keyUp(cocos2d::enumKeyCodes key, double timestamp) override;
     bool ccTouchBegan(cocos2d::CCTouch* t, cocos2d::CCEvent* e) override { return true; }
     void ccTouchMoved(cocos2d::CCTouch*, cocos2d::CCEvent*) override {}
     void ccTouchEnded(cocos2d::CCTouch*, cocos2d::CCEvent*) override {}
@@ -69,7 +69,7 @@ private:
     cocos2d::CCMenu*           m_tabMenu   = nullptr;
     cocos2d::CCLabelBMFont*    m_titleLbl  = nullptr;
     cocos2d::CCLabelBMFont*    m_footerLbl = nullptr;
-    cocos2d::extension::CCScale9Sprite*   m_panel     = nullptr;
+    CCScale9Sprite*            m_panel     = nullptr;
 
     BufferPage*             m_bufferPage = nullptr;
     AssistedGameplayPage*   m_agPage     = nullptr;

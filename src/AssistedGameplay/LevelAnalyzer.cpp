@@ -36,7 +36,10 @@ void LevelAnalyzer::rebuild(PlayLayer* playLayer) {
     // In the GD 2.2081 bindings, m_objects is a vector of GameObject
     // pointers rather than a cocos2d::CCArray.
     StateAnalyzer sa;
-    for (auto* go : playLayer->m_objects) {
+    auto* objects = playLayer->m_objects;
+    if (!objects) return;
+    for (unsigned i = 0; i < objects->count(); ++i) {
+        auto* go = static_cast<GameObject*>(objects->objectAtIndex(i));
         if (auto h = sa.hazardFromObject(go)) {
             m_hazards.push_back(*h);
         }

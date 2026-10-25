@@ -1,47 +1,51 @@
 /**
  * SpoonClient / main.cpp
  *
- * Entry point for the Geode v5 mod. In v5 the `GEODE_API(Mod)` macro is
- * optional — startup work is typically done by hooking a class whose
- * `init` is called once at game boot. We follow the example-mod pattern
- * and hook `MenuLayer::init` (Geometry Dash's main-menu scene) to:
- *
- *   1. Run settings load + version-aware migration.
- *   2. Log a startup banner so users can confirm in the Geode log viewer
- *      that the mod loaded.
- *
- * The actual gameplay hooks (`PlayLayer`, `PlayerObject`,
- * `CCKeyboardDispatcher`) are activated by `$modify` blocks in their
- * respective hook .cpp files. Geode v5 auto-registers every `$modify`
- * block at static-init time, so there's no central `register_()` call
- * needed.
+ * Geode v5 entry: `$on_mod(Loaded)` loads settings and registers keybind
+ * listeners. `MenuLayer::init` logs a one-time startup banner.
  */
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
+#include <Geode/loader/SettingV3.hpp>
+#include <Geode/loader/GameEvent.hpp>
 #include "SpoonSettings.hpp"
 #include "Hooks/HookManager.hpp"
+#include "UI/SpoonMenuLayer.hpp"
+#include "AssistedGameplay/Manager.hpp"
 
 using namespace geode::prelude;
 
-// `$modify` block — fires when MenuLayer::init is first called (i.e.,
-// when the main menu first loads after GD startup). Returning false
-// skips our setup but lets GD's normal flow continue.
+$on_mod(Loaded) {
+    spoon::Settings::get().load();
+    spoon::hooks::HookManager::get().registerAll();
+
+    listenForAllSettingChanges([](std::string_view, std::shared_ptr<SettingV3>) {
+        spoon::Settings::get().load();
+    });
+
+    listenForKeybindSettingPresses("menuKey", [](Keybind const&, bool down, bool repeat, double) {
+        if (down && !repeat) {
+            spoon::SpoonMenuLayer::toggle();
+        }
+    });
+
+    listenForKeybindSettingPresses("agEmergencyStopKey", [](Keybind const&, bool down, bool repeat, double) {
+        if (down && !repeat) {
+            spoon::ag::Manager::get().emergencyStop();
+        }
+    });
+}
+
 class $modify(SpoonMenuLayerBoot, MenuLayer) {
     bool init() {
         if (!MenuLayer::init()) return false;
 
-        // Run one-time startup work. The static-init guard prevents us
-        // from re-running on every MenuLayer re-creation (GD rebuilds
-        // the menu scene every time the player exits a level back to
-        // the main menu, so this init fires repeatedly).
         static bool s_started = false;
         if (!s_started) {
             s_started = true;
-            spoon::Settings::get().load();
-            spoon::hooks::HookManager::get().registerAll();
             log::info(
                 "[SpoonClient] v2.0.0 initialized. "
-                "F6 menu key = '{}', AG emergency stop = '{}'.",
+                "Menu key = '{}', AG emergency stop = '{}'.",
                 spoon::Settings::get().keybinds().menu,
                 spoon::Settings::get().keybinds().emergencyStop
             );

@@ -12,6 +12,7 @@
 #include "../SpoonSettings.hpp"
 #include "../BufferManager.hpp"
 #include <Geode/Geode.hpp>
+#include <cstdio>
 
 using namespace geode;
 using namespace geode::prelude;
@@ -49,8 +50,7 @@ bool SpoonMenuLayer::init() {
     addChild(dim, 0);
 
     // Panel: 720 x 540 centered. CCScale9Sprite gives us rounded corners.
-    m_panel = cocos2d::extension::CCScale9Sprite::create("GJ_button_05.png"_spr,
-        CCRect(0, 0, 80, 80));
+    m_panel = CCScale9Sprite::create("GJ_square01.png");
     m_panel->setColor({ 24, 26, 32 });
     m_panel->setOpacity(240);
     m_panel->setContentSize({ 720.f, 540.f });
@@ -147,22 +147,19 @@ void SpoonMenuLayer::onTabSelect(CCObject* sender) {
     showPage(idx);
 }
 
-void SpoonMenuLayer::keyDown(enumKeyCodes key) {
+void SpoonMenuLayer::keyDown(enumKeyCodes key, double timestamp) {
     if (key == enumKeyCodes::KEY_Escape || key == enumKeyCodes::KEY_F6) {
         onClose(nullptr);
         return;
     }
-    // Forward to the visible page so per-page keys (scrolling, etc.) work.
     switch (m_currentPage) {
-        case 0: m_modulesPage->keyDown(key); break;
-        case 1: m_bufferPage->keyDown(key);  break;
-        case 2: m_agPage->keyDown(key);      break;
+        case 0: m_modulesPage->keyDown(key, timestamp); break;
+        case 1: m_bufferPage->keyDown(key, timestamp);  break;
+        case 2: m_agPage->keyDown(key, timestamp);      break;
     }
 }
 
-void SpoonMenuLayer::keyUp(enumKeyCodes) {
-    // Intentionally no-op; the gameplay's key-up events go through the
-    // dedicated KeyboardDispatchHook, not through this layer.
+void SpoonMenuLayer::keyUp(enumKeyCodes, double) {
 }
 
 void SpoonMenuLayer::refreshFooter() {

@@ -14,6 +14,7 @@
 #include "../SpoonSettings.hpp"
 #include "../BufferManager.hpp"
 #include <Geode/Geode.hpp>
+#include <cstdio>
 
 using namespace geode;
 using namespace geode::prelude;
@@ -44,7 +45,7 @@ static CCMenuItemSpriteExtra* makeBtn(const char* text, float scale,
                                      CCObject* target, SEL_MenuHandler sel) {
     auto* l = CCLabelBMFont::create(text, "bigFont.fnt");
     l->setScale(scale);
-    auto* bg = cocos2d::extension::CCScale9Sprite::create("GJ_button_01.png"_spr);
+    auto* bg = CCScale9Sprite::create("GJ_button_01.png");
     bg->setContentSize({ 26.f, 22.f });
     return CCMenuItemSpriteExtra::create(bg, bg, target, sel);
 }

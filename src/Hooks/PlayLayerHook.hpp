@@ -9,7 +9,8 @@
  * would fire N times for N TUs that include the header.
  *
  *   * `init`           — fires once per level load.
- *   * `update(float)`  — fires every gameplay frame.
+ *   * per-frame work is on GJBaseGameLayer::update (PlayLayer does not
+ *     redeclare update in the 2.2081 bindings).
  *   * `resetLevel`     — fires on retry / level restart.
  *   * `levelComplete`  — fires on the win condition.
  *   * `onQuit`         — fires when the user exits to menu.

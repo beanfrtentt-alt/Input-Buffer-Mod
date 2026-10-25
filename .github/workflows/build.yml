@@ -61,17 +61,26 @@ jobs:
         id: build
         uses: geode-sdk/build-geode-mod@main
         with:
-          # Pin to a known-good Geode SDK release. Bump here when a new
-          # stable ships.
           sdk: 'v5.11.2'
-          # Release build (the .geode package is what end users install).
+          cli: latest
           build-config: Release
-          # Export the .pdb file alongside the .geode — useful for
-          # debugging crash reports without rebuilding locally.
           export-pdb: true
-          # Geode target. Win64 is the modern Windows target for GD 2.2+.
-          # (GD 2.2 dropped 32-bit support.)
           target: 'Win64'
+
+      - name: Dump build tree on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "Working directory: $(Get-Location)"
+          Get-ChildItem -Force | ForEach-Object { Write-Host $_.FullName }
+          foreach ($dir in @('build', 'out', 'bin')) {
+            if (Test-Path $dir) {
+              Write-Host "--- $dir ---"
+              Get-ChildItem -Path $dir -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 120 |
+                ForEach-Object { Write-Host $_.FullName }
+            }
+          }
 
       - name: Verify the .geode output exists and is non-empty
         shell: pwsh

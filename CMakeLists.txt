@@ -48,7 +48,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/s
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(${PROJECT_NAME} PRIVATE
         -Wall -Wno-multichar -Wno-unknown-pragmas
-        -Wno-unused-variable -Wno-unused-parameter
         -fno-rtti
     )
+elseif (MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /W3)
 endif()

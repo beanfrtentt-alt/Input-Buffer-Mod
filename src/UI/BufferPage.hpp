@@ -31,7 +31,7 @@ public:
 private:
     struct Row {
         Gamemode gamemode;
-        cocos2d::CCMenuItemToggler* enabledToggle = nullptr;
+        CCMenuItemToggler* enabledToggle = nullptr;
         cocos2d::CCLabelBMFont*     framesLabel   = nullptr;
     };
 

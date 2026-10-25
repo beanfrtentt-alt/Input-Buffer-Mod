@@ -9,9 +9,10 @@
 #include "AssistedGameplayPage.hpp"
 #include "../SpoonSettings.hpp"
 #include "../AssistedGameplay/Manager.hpp"
-#include "../AssistedGameplay/InputController.hpp"
+#include "../AssistedGameplay/OverlayUI.hpp"
 #include "../BufferManager.hpp"
 #include <Geode/Geode.hpp>
+#include <cstdio>
 
 using namespace geode;
 using namespace geode::prelude;

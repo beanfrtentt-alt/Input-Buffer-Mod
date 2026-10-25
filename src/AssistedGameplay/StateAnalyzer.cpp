@@ -20,7 +20,6 @@
 #include <Geode/binding/GJBaseGameLayer.hpp>
 #include <Geode/binding/GameObject.hpp>
 #include <Geode/binding/GJGameLevel.hpp>
-#include <Geode/binding/GameStatsManager.hpp>
 
 using namespace geode;
 using namespace geode::prelude;

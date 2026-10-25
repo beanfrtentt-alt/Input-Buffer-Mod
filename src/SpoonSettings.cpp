@@ -15,6 +15,7 @@
  */
 #include "SpoonSettings.hpp"
 #include <Geode/Geode.hpp>
+#include <vector>
 
 using namespace geode;
 using namespace geode::prelude;
@@ -50,67 +51,49 @@ Settings::Settings() {
     }
 }
 
-static int readIntClamped(const char* key, int def, int lo, int hi) {
-    auto mod = Mod::get();
-    int v = def;
-    if (auto val = mod->getSettingValue<std::int64_t>(key)) v = static_cast<int>(*val);
-    if (v < lo) v = lo;
-    if (v > hi) v = hi;
-    return v;
-}
-
-static bool readBool(const char* key, bool def) {
-    auto mod = Mod::get();
-    if (auto val = mod->getSettingValue<bool>(key)) return *val;
-    return def;
-}
-
 static std::string readString(const char* key, std::string def) {
-    auto mod = Mod::get();
-    if (auto val = mod->getSettingValue<std::string>(key)) return *val;
-    return def;
+    auto v = Mod::get()->getSettingValue<std::string>(key);
+    return v.empty() ? def : v;
+}
+
+static std::string readKeybindLabel(const char* key, const char* fallback) {
+    auto binds = Mod::get()->getSettingValue<std::vector<Keybind>>(key);
+    if (binds.empty()) return fallback;
+    return binds.front().toString();
 }
 
 void Settings::load() {
-    // Migrate first so older saved layouts are normalized before reading.
     migrate();
 
     for (int i = 0; i < 8; ++i) {
         m_profiles[i].gamemode = static_cast<Gamemode>(i);
-        m_profiles[i].enabled  = readBool(kBufEnabledKey[i], kDefaultEnabled[i]);
-        m_profiles[i].frames   = readIntClamped(kBufFramesKey[i],
-                                                kDefaultFrames[i], 0, 30);
+        m_profiles[i].enabled  = Mod::get()->getSettingValue<bool>(kBufEnabledKey[i]);
+        int frames = static_cast<int>(Mod::get()->getSettingValue<std::int64_t>(kBufFramesKey[i]));
+        m_profiles[i].frames = clamp(frames, 0, 30);
     }
 
-    m_ag.enabled         = readBool("agEnabled", false);
+    m_ag.enabled         = Mod::get()->getSettingValue<bool>("agEnabled");
     m_ag.strategy        = readString("agStrategy", "receding-horizon");
-    m_ag.lookaheadFrames = readIntClamped("agLookaheadFrames", 18, 4, 90);
-    m_ag.showOverlay     = readBool("agShowOverlay", true);
-    m_ag.showDebug       = readBool("agShowDebug", false);
+    m_ag.lookaheadFrames = clamp(
+        static_cast<int>(Mod::get()->getSettingValue<std::int64_t>("agLookaheadFrames")),
+        4, 90);
+    m_ag.showOverlay     = Mod::get()->getSettingValue<bool>("agShowOverlay");
+    m_ag.showDebug       = Mod::get()->getSettingValue<bool>("agShowDebug");
 
-    m_kb.menu          = readString("menuKey", "F6");
-    m_kb.emergencyStop = readString("agEmergencyStopKey", "F8");
+    m_kb.menu          = readKeybindLabel("menuKey", "F6");
+    m_kb.emergencyStop = readKeybindLabel("agEmergencyStopKey", "F8");
 }
 
 int Settings::migrate() {
-    auto mod = Mod::get();
-    int v = 1;
-    if (auto cv = mod->getSettingValue<std::int64_t>("configVersion")) {
-        v = static_cast<int>(*cv);
-    }
+    auto* mod = Mod::get();
+    int v = static_cast<int>(mod->getSettingValue<std::int64_t>("configVersion"));
+    if (v <= 0) v = 1;
 
-    // v1 -> v2: the old `agLookahead` was a millisecond value; new layout uses
-    // frames and a different key. We honor the old value (rounded to frames)
-    // so user customization is preserved.
     if (v < 2) {
-        // Read the legacy field (may be absent; getSettingValue returns
-        // std::nullopt in that case).
-        if (auto old = mod->getSettingValue<std::int64_t>("agLookahead")) {
-            int frames = static_cast<int>((*old + 16) / 16); // ~16ms per frame
-            frames = clamp(frames, 4, 90);
-            (void)mod->setSettingValue<std::int64_t>("agLookaheadFrames",
-                                                     std::int64_t(frames));
-        }
+        int frames = clamp(
+            static_cast<int>(mod->getSettingValue<std::int64_t>("agLookaheadFrames")),
+            4, 90);
+        (void)mod->setSettingValue<std::int64_t>("agLookaheadFrames", std::int64_t(frames));
         v = 2;
         (void)mod->setSettingValue<std::int64_t>("configVersion", std::int64_t(2));
     }
@@ -131,7 +114,6 @@ const BufferProfile& Settings::profile(Gamemode g) const {
 
 BufferProfile& Settings::profileMut(Gamemode g) {
     if (g == Gamemode::Unknown) {
-        // Caller bug — return Cube as a safe default rather than crashing.
         return m_profiles[0];
     }
     return m_profiles[static_cast<int>(g)];
@@ -140,7 +122,7 @@ BufferProfile& Settings::profileMut(Gamemode g) {
 void Settings::saveBufferProfile(const BufferProfile& p) {
     if (p.gamemode == Gamemode::Unknown) return;
     int i = static_cast<int>(p.gamemode);
-    auto mod = Mod::get();
+    auto* mod = Mod::get();
     (void)mod->setSettingValue<bool>(kBufEnabledKey[i], p.enabled);
     (void)mod->setSettingValue<std::int64_t>(kBufFramesKey[i],
         std::int64_t(clamp(p.frames, 0, 30)));
@@ -148,7 +130,7 @@ void Settings::saveBufferProfile(const BufferProfile& p) {
 }
 
 void Settings::saveAgSettings() {
-    auto mod = Mod::get();
+    auto* mod = Mod::get();
     (void)mod->setSettingValue<bool>("agEnabled", m_ag.enabled);
     (void)mod->setSettingValue<std::string>("agStrategy", m_ag.strategy);
     (void)mod->setSettingValue<std::int64_t>("agLookaheadFrames",
@@ -158,9 +140,9 @@ void Settings::saveAgSettings() {
 }
 
 void Settings::saveKeybinds() {
-    auto mod = Mod::get();
-    (void)mod->setSettingValue<std::string>("menuKey", m_kb.menu);
-    (void)mod->setSettingValue<std::string>("agEmergencyStopKey", m_kb.emergencyStop);
+    // Keybind settings are edited through Geode's own settings UI. Persist
+    // the cached labels so the F6 footer stays in sync after a reload.
+    load();
 }
 
 void Settings::resetProfile(Gamemode g) {
@@ -180,7 +162,7 @@ void Settings::resetAllProfiles() {
 }
 
 std::string Settings::activeGamemodeLabel() const {
-    return std::string(gamemodeName(Gamemode::Cube)); // updated at runtime by BufferManager
+    return std::string(gamemodeName(Gamemode::Cube));
 }
 
 } // namespace spoon
