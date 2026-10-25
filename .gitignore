@@ -1,0 +1,28 @@
+# Build artifacts (local builds only — the GitHub Actions workflow doesn't
+# commit anything back).
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+*.geode
+*.geode.tmp
+*.pdb
+.cache/
+
+# IDE / editor cruft
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Geode SDK is fetched via the `geode-sdk/build-geode-mod` action on CI,
+# or via `geode sdk install` locally. It's never vendored into the repo.
+/geode/
+
+# Local dev logs (the Geode log viewer writes here on GD restarts).
+*.log
+
+# Compiled CMake output (Geode CLI uses these names).
+/.geode-cache/
+/geode-build/

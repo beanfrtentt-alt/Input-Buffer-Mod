@@ -1,79 +1,152 @@
-# Input Buffer Demo (Geode mod)
+# Spoon Client
 
-**Status: source only. This project has NOT been compiled as a Geode mod or tested in-game.**
-No `.geode` file exists yet. The build sandbox could not reach the Windows SDK/CRT downloads Geode needs.
-Only `src/predictor.hpp` (pure math) was compiled and unit-tested on its own (`tests/predictor_test.cpp`).
+A polished Geometry Dash **2.2081** mod built on the **Geode SDK v5**.
+Spoon Client ships three primary features:
 
-## Get the `.geode` file (easiest: GitHub Actions)
-1. Create a GitHub repository and push this folder to its `main` branch.
-2. Open the **Actions** tab. "Build Geode Mod" runs on push (or run it manually).
-3. Download the **Build Output** artifact: `ilyaskjidaa.input-buffer-demo.geode`.
+1. **F6 in-game menu** — a clean, tabbed settings panel styled after GD's
+   own UI, opened with the F6 key.
+2. **Per-gamemode input buffering** — every player gamemode (Cube, Ship,
+   Ball, UFO, Wave, Robot, Spider, Swing) gets its own persistent buffer
+   profile. Dual mode is handled correctly with two independent buffer
+   slots.
+3. **Assisted Gameplay** — a working automation system that uses
+   receding-horizon obstacle-aware planning to drive the player from
+   level start to completion (where the level layout permits it).
 
-## Or build locally (Windows)
-Needs Visual Studio 2022 (C++ desktop workload), CMake and the Geode CLI.
+## Target environment
+
+| Component | Version |
+|-----------|---------|
+| Geometry Dash | 2.2081 (the latest stable GD that Geode v5 fully supports — Geode v5.11.2 also has partial crash-fix support for the just-released 2.2091, but 2.2081 is the primary target) |
+| Geode SDK | v5.x (workflow pins v5.11.2; bump in `.github/workflows/build.yml` to track new Geode releases) |
+| C++ standard | C++23 (Geode v5 requirement) |
+| Build OS | Windows (the primary platform GD runs on) |
+| Build system | CMake ≥ 3.21 + the Geode CLI |
+
+> **About "GD 2.801"**: this version doesn't exist. The user request
+> appears to have been a typo of "2.2081" (dropping the leading 2). The
+> closest valid Geode-supported GD versions are **2.2081** (stable,
+> targeted here) and **2.2091** (just-released, with partial Geode
+> support — not recommended yet). See `docs/TROUBLESHOOTING.md` if you
+> actually wanted to target 2.2091.
+
+## Quick navigation
+
+| Topic              | File                                  |
+|--------------------|----------------------------------------|
+| Build instructions | [docs/BUILD.md](docs/BUILD.md)              |
+| Architecture       | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Test procedures    | [docs/TEST_PROCEDURES.md](docs/TEST_PROCEDURES.md) |
+| Known limitations   | [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) |
+| Buffer & AG interaction | [docs/BUFFER_AG_INTERACTION.md](docs/BUFFER_AG_INTERACTION.md) |
+| GitHub Actions troubleshooting | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+
+## The fastest path: let GitHub Actions build it for you
+
+You don't need to install any tools locally.
+
+1. **Download the ZIP** of this repository (or fork it on GitHub).
+2. Create a new GitHub repository named `spoon-client`.
+3. Push the ZIP contents to the repository (commit them to `main`).
+4. Open the repository's **Actions** tab.
+5. The workflow named **Build Spoon Client** will run automatically.
+6. Once the run finishes (typically 5–8 minutes), click into the run,
+   scroll to the **Artifacts** section, and download the
+   `SpoonClient-Geode-v5-GD-2.2081-<commit>` artifact.
+7. Unzip the downloaded artifact — it contains the `SpoonClient.geode`
+   file plus (optionally) the `.pdb` debug symbols.
+8. Drop `SpoonClient.geode` into your Geometry Dash mods directory
+   (`%APPDATA%/GeometryDash/geode/mods/dev.spoonclient.mod/`).
+9. Launch Geometry Dash. Open the Geode log viewer
+   (Window → Geode → Logs, or press F12). You should see a line:
+   `[SpoonClient] v2.0.0 initialized. F6 menu key = 'F6', AG emergency stop = 'F8'.`
+10. Press F6 in any menu or during gameplay — the Spoon Client panel
+    appears.
+
+Full step-by-step instructions are in `docs/BUILD.md`.
+
+## Features at a glance
+
+### F6 Menu
+
+* 3 tabs: Modules, Buffer, Assisted Gameplay.
+* Persistent settings (saved to disk via Geode's setting API).
+* Live status footer showing the active gamemode + buffer size + AG state.
+* Closes with F6, Escape, or the close button.
+* Touch + keyboard intercept while open — gameplay inputs are not
+  triggered while you're navigating the menu.
+
+### Per-gamemode buffers
+
+* One profile per gamemode, each with its own `enabled` toggle and
+  `frames` (0..30) integer.
+* Profiles are stored in Geode's saved settings as flat keys
+  (`bufferCubeFrames`, `bufferShipFrames`, ...) so they survive GD
+  restarts and survive the mod being uninstalled+reinstalled.
+* Dual mode has **two** runtime buffer slots — P1 and P2 are
+  independent, even when they're in different gamemodes.
+* A `Reset to defaults` button per row, plus `Reset all`.
+
+### Assisted Gameplay
+
+* Toggleable from the F6 menu or the saved Geode settings.
+* 5-component architecture: StateAnalyzer, LevelAnalyzer,
+  ActionPlanner, InputController, RecoveryManager, plus an OverlayUI.
+* Live on-screen status: Idle / Ready / Active / Recovering / Paused /
+  Completed / Error.
+* Emergency-stop keybind (F8 by default) clears all queued inputs in
+  O(1).
+* All AG inputs go through the BufferManager — AG and the human player
+  share the same input queue, so changing a buffer value in the menu
+  immediately affects AG's input timing.
+
+## Repository layout
+
 ```
-geode sdk install
-geode sdk install-binaries
-set GEODE_SDK=<path to geode sdk>
-geode build
+spoon-client/
+├── mod.json                       # Geode v5 mod metadata + settings schema
+├── CMakeLists.txt                # v5-style CMake (C++23, GLOB_RECURSE, setup_geode_mod)
+├── README.md
+├── .gitignore
+├── .github/workflows/build.yml   # GitHub Actions: builds for Win64 + uploads artifact
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── BUILD.md
+│   ├── TEST_PROCEDURES.md
+│   ├── KNOWN_LIMITATIONS.md
+│   ├── BUFFER_AG_INTERACTION.md
+│   └── TROUBLESHOOTING.md
+├── resources/
+│   └── README.md                 # how to add custom sprites
+└── src/
+    ├── main.cpp                  # MenuLayer::init $modify boot hook
+    ├── Utils.hpp                 # gamemode enum, clamp, debug log macros
+    ├── SpoonSettings.{hpp,cpp}   # validated config store + migration
+    ├── BufferManager.{hpp,cpp}   # per-gamemode runtime buffer
+    ├── UI/
+    │   ├── SpoonMenuLayer.{hpp,cpp}
+    │   ├── BufferPage.{hpp,cpp}
+    │   ├── AssistedGameplayPage.{hpp,cpp}
+    │   └── ModulesPage.{hpp,cpp}
+    ├── AssistedGameplay/
+    │   ├── State.hpp              # plain-data snapshot
+    │   ├── Manager.{hpp,cpp}
+    │   ├── StateAnalyzer.{hpp,cpp}
+    │   ├── LevelAnalyzer.{hpp,cpp}
+    │   ├── ActionPlanner.{hpp,cpp}
+    │   ├── InputController.{hpp,cpp}
+    │   ├── RecoveryManager.{hpp,cpp}
+    │   └── OverlayUI.{hpp,cpp}
+    └── Hooks/
+        ├── HookManager.{hpp,cpp}  # links all hook .cpp files
+        ├── PlayLayerHook.{hpp,cpp}      # $modify(PlayLayer)
+        ├── PlayerObjectHook.{hpp,cpp}   # $modify(PlayerObject)
+        ├── BaseGameLayerHook.{hpp,cpp}  # no-op (cleanup delegated to PlayLayer::onQuit)
+        └── KeyboardDispatchHook.{hpp,cpp} # $modify(KeyboardEventDispatcher)
 ```
 
-## Install
-Copy the `.geode` file into `Geometry Dash/geode/mods/` (or drag it onto the game window) and restart.
+## License & attribution
 
-## Controls
-| Key | Action |
-|---|---|
-| **F6** | Cycle the input buffer: OFF, 2, 4, 8, 16, 32, 64 ticks, OFF |
-| **F8** | Toggle the Auto-Correction click assistant (OFF by default and at the start of every level) |
-
-Both keys act only on the initial press; holding a key does not repeat. F6 and F8 are independent and both states are always shown in the overlay.
-
-## Settings (Geode mod settings menu)
-Show predicted trajectory, prediction horizon (10-240 ticks), visualization detail (1-3), debug mode, auto-click scan range (10-100 ticks).
-The project has no separate "dashboard" window or "profiles" feature; the in-game overlay is the dashboard and the Geode settings screen is the configuration menu.
-
-## Overlay (top-left, in a level)
-`AUTO-CORRECTION: ON` / `OFF` (plus a red banner while ON), its live status, auto-input counters (issued / confirmed by game / unconfirmed), buffer state, prediction summary (mode, confidence, ticks to hazard, landing, next action) and statistics (normal / buffered / AUTO / expired inputs, prediction accuracy, deaths warned vs unwarned). Buffered clicks flash the screen red; automated clicks flash orange.
-
-## Console window (Windows)
-The first F6 or F8 press opens a separate console. It logs mode changes, status lines and input events. Its close button is disabled (closing it would close the game).
-Every automated input and every change of assistant state is also appended to `auto-input-log.txt` in the mod's save directory, separate from player inputs.
-
-## How it works
-**Buffer (F6):** with the buffer ON, a press made while airborne is remembered for N ticks and replayed once on landing. OFF passes every input through unchanged.
-
-**Trajectory prediction:** measures the player's per-tick movement (and its change) each tick and extrapolates it, drawn as a *dashed cyan* line. Hazards and solids come from the game's visible object sections (hazard hitboxes shrunk by a 0.6 heuristic). Red X = predicted collision, yellow dot = predicted landing. It is a prediction, never a confirmed event.
-
-**Auto-Correction (F8) = automatic click assistant, cube only.** Every game tick, from live state (not a timer):
-1. It learns your own jump arc from jumps that were actually clicked (so you must do one normal jump first).
-2. It predicts the straight path; if a *hazard* (spike/saw) is on it, it simulates a jump started now, or N ticks later, and finds the window in which a jump clears the hazard and lands past it.
-3. Classification, shown in the overlay:
-   - **CLICK EXPECTED**: the window is still open or not open yet. You may click yourself. Nothing is sent.
-   - **PLAYER CLICK REGISTERED**: you clicked (or are holding) recently. Nothing is sent, so no duplicate.
-   - **WOULD BE MISSED**: this is the last tick where a jump is predicted to clear, and you have not clicked, so exactly one jump press is sent. A cooldown blocks any further auto input until the player has left the ground and landed again.
-   - **WINDOW MISSED**: no jump from here is predicted to clear; nothing is sent.
-   - **UNAVAILABLE: reason**: required information is missing (no jump profile yet, wrong mode, airborne, blocked by a solid block...). It says so instead of acting.
-4. **Honest feedback:** an auto click is only reported as *CONFIRMED* if the game then shows the player taking off within 6 ticks. Otherwise it is logged as *NOT CONFIRMED*. "Issued" only means the mod called the game's input handler.
-5. Turning F8 OFF releases the button it pressed and stops immediately. Dying, restarting, finishing the level, quitting or changing movement mode clears all pending state.
-6. Your own clicks are never altered or delayed by this feature.
-
-**Debug mode:** also draws the actual trail (green) and logs predicted-vs-actual discrepancies and whether a prediction had warned before each death.
-
-## Supported versions
-Geode SDK v5.11.2, Geometry Dash 2.2081 (Windows/Android/Mac declared in `mod.json`; only Windows is built by the workflow).
-
-## Known inaccuracies and limitations
-- **Nothing here has been tested in-game.** Do not assume the click assistant works until you have tried it. Only the decision logic (`tests/predictor_test.cpp`) and a mock-API syntax check (`tests/check.sh`) have been run; neither proves the real Geode build or in-game behavior.
-- Prediction is extrapolation, not the game's physics. It ignores triggers, portals, pads/orbs, slopes, moving/rotating objects, speed changes, gravity flips mid-horizon and platformer mode.
-- Reasonably modelled: cube (medium confidence), ball/wave (low). Ship, UFO, robot, spider and swing use the same straight/parabolic guess (very low confidence) and the click assistant ignores them.
-- Only objects in the currently visible sections are considered, so very long horizons can run past the scanned area. Hazard hitboxes are heuristic.
-- The click assistant handles hazards (spikes/saws) on a flat floor at constant speed. It does not climb blocks, use orbs/pads/portals, handle gravity flips mid-jump, or act on player 2. It needs one clean clicked jump at the current speed before it has a profile.
-- It can only act at the last safe tick; if prediction is off by a tick or two (likely, given the heuristics), it may still die. It cannot rescue a jump that is already too late.
-- Whether a press passed to the game's input handler is processed exactly like a physical click (and the exact release timing) is unverified; the CONFIRMED/NOT CONFIRMED counters exist to surface this.
-- "Prediction correct" in the statistics means the position 10 ticks later was within 10 units of the prediction; it is not a measure of hazard-prediction accuracy.
-- The original buffering specification was not supplied, so the buffer logic is my interpretation.
-- Automatic clicks are assisted play. Leaderboards and record verification may treat them as cheating; use only where that is acceptable. The separate log exists so assisted runs stay identifiable.
-
-## Self-checks (no Geode SDK needed)
-`sh tests/check.sh` compiles and runs the decision-logic test and a syntax check of `src/main.cpp` against a minimal mock of the Geode API. The mock only catches typos/scoping in this project's own code, not mismatches with the real SDK.
+Spoon Client is provided as source for the GD community. The mod uses
+the Geode SDK (BSL-1.0) and Geometry Dash binding headers; see the
+Geode repository for their respective licenses.

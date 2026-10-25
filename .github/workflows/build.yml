@@ -1,36 +1,123 @@
-name: Build Geode Mod
+# Spoon Client — automated build workflow for the Geode mod.
+#
+# Targets:
+#   * Game: Geometry Dash 2.2081
+#   * SDK:  Geode v5 (pinned via the geode-sdk/build-geode-mod action)
+#   * OS:   Windows (the primary platform GD runs on)
+#
+# Triggers:
+#   * Push to any branch            — builds for verification
+#   * Pull request                  — builds for verification
+#   * workflow_dispatch (manual)    — builds on demand from the Actions tab
+#
+# Output:
+#   * A GitHub Actions artifact named "SpoonClient-Geode-GD2.2081"
+#     containing the packaged SpoonClient.geode file. Downloadable
+#     from the run's Artifacts section.
+#
+# The build itself is delegated to the geode-sdk/build-geode-mod
+# action, which handles:
+#   1. Installing the Geode CLI + SDK + binding headers.
+#   2. Configuring the project with CMake.
+#   3. Compiling the mod (C++23 / MSVC on Windows).
+#   4. Packaging the .geode file.
+#   5. Producing the build output path that we forward to
+#      actions/upload-artifact.
+#
+# Note on the SDK version pin: we pass `sdk: 'v5.11.2'` (the latest
+# stable release as of October 2026). Bump this in the workflow file
+# when a new Geode release ships to pick up bug fixes. The CLI version
+# is left at "latest" since CLI updates are usually backward-compatible.
+
+name: Build Spoon Client
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Cancel any in-flight run for the same ref when a new commit lands —
+# avoids stacking redundant jobs for force-pushed PRs.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - name: Windows
-            os: windows-latest
-    name: Build ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+    name: Build (Windows, GD 2.2081, Geode v5)
+    runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history isn't needed for a single build; shallow is
+          # faster and uses less cache.
+          fetch-depth: 1
+
       - name: Build the mod
+        id: build
         uses: geode-sdk/build-geode-mod@main
         with:
-          combine: true
-          sdk: nightly
+          # Pin to a known-good Geode SDK release. Bump here when a new
+          # stable ships.
+          sdk: 'v5.11.2'
+          # Release build (the .geode package is what end users install).
+          build-config: Release
+          # Export the .pdb file alongside the .geode — useful for
+          # debugging crash reports without rebuilding locally.
+          export-pdb: true
+          # Geode target. Win64 is the modern Windows target for GD 2.2+.
+          # (GD 2.2 dropped 32-bit support.)
+          target: 'Win64'
 
-  package:
-    name: Package .geode
-    runs-on: ubuntu-latest
-    needs: ['build']
-    steps:
-      - uses: geode-sdk/build-geode-mod/combine@main
-        id: build
-      - uses: actions/upload-artifact@v4
+      - name: Verify the .geode output exists and is non-empty
+        shell: pwsh
+        env:
+          BUILD_OUTPUT: ${{ steps.build.outputs.build-output }}
+        run: |
+          Write-Host "Build output path: $env:BUILD_OUTPUT"
+          if (-not $env:BUILD_OUTPUT) {
+            Write-Error "Build action did not produce a build-output path."
+            exit 1
+          }
+          if (-not (Test-Path $env:BUILD_OUTPUT)) {
+            Write-Error "Build output file does not exist at: $env:BUILD_OUTPUT"
+            exit 1
+          }
+          $size = (Get-Item $env:BUILD_OUTPUT).Length
+          Write-Host "Build output size: $size bytes"
+          if ($size -lt 1024) {
+            Write-Error "Build output is suspiciously small ($size bytes). Likely an empty package."
+            exit 1
+          }
+          Write-Host "OK: $env:BUILD_OUTPUT exists and is $size bytes."
+
+      - name: Determine artifact filename
+        id: filename
+        shell: pwsh
+        run: |
+          $name = "SpoonClient-Geode-v5-GD-2.2081-${{ github.sha }}"
+          # GitHub artifact names accept only [a-zA-Z0-9._-]
+          $name = $name -replace '[^a-zA-Z0-9._-]', '-'
+          # Truncate to 80 chars max — Actions artifact name limit.
+          if ($name.Length -gt 80) { $name = $name.Substring(0, 80) }
+          Write-Host "Artifact name: $name"
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Upload the .geode artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Build Output
+          name: ${{ steps.filename.outputs.name }}
+          # The build-output path from build-geode-mod may point at a
+          # single .geode file OR at a directory containing the .geode
+          # plus the .pdb. Uploading the path handles both cases.
           path: ${{ steps.build.outputs.build-output }}
+          # Keep for 30 days — GitHub's default is 90 but we don't need
+          # that long, and this saves Actions storage quota.
+          retention-days: 30
+          # Don't fail the build if the artifact upload finds nothing
+          # new (e.g., on a re-run of an identical commit).
+          if-no-files-found: error
