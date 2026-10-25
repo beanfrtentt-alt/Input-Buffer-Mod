@@ -13,8 +13,8 @@
 
 namespace spoon {
 
-// PlayerObject::m_gamemode in GD bindings exposes the gamemode as an int.
-// Values are stable across GD 2.x for cube/ship/ball/ufo/wave/robot/spider/swing.
+// Internal enum used by Spoon Client. Derive the active mode from the
+// PlayerObject mode flags because the 2.2081 bindings do not expose m_gamemode.
 enum class Gamemode : int {
     Cube   = 0,
     Ship   = 1,

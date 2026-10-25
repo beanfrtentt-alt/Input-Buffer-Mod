@@ -76,7 +76,7 @@ public:
     void onDeath(bool player2 = false);
 
     // Player gamemode transition (called from PlayerObjectHook::gamemodeChanged
-    // via the GD property `m_gamemode`).
+    // via PlayerObject mode flags).
     void onGamemodeChange(bool player2, Gamemode newMode);
 
     // ----- Input queue API ----------------------------------------------------

@@ -1,7 +1,7 @@
 /**
  * SpoonClient / UI/ModulesPage.cpp
  *
- * Hard-coded list of modules. Each module's row is a CCMenuItemSpriteExt
+ * Hard-coded list of modules. Each module's row is a CCMenuItemSpriteExtra
  * with an always-disabled toggle that displays the current state and a
  * description label next to it. The page itself is non-interactive; to
  * change a module's enabled state the user goes to the dedicated page.
@@ -36,7 +36,7 @@ static void addRow(CCMenu* menu, const char* name, const char* desc,
     n->setScale(0.6f);
     n->setColor({255, 220, 90});
     n->setAnchorPoint({0.f, 0.5f});
-    auto* nItem = CCMenuItemSpriteExt::create(n, n, nullptr, nullptr);
+    auto* nItem = CCMenuItemSpriteExtra::create(n, n, nullptr, nullptr);
     nItem->setEnabled(false);
     nItem->setPosition({ -330.f, y });
     menu->addChild(nItem);
@@ -45,7 +45,7 @@ static void addRow(CCMenu* menu, const char* name, const char* desc,
     d->setScale(0.45f);
     d->setColor({200, 200, 200});
     d->setAnchorPoint({0.f, 0.5f});
-    auto* dItem = CCMenuItemSpriteExt::create(d, d, nullptr, nullptr);
+    auto* dItem = CCMenuItemSpriteExtra::create(d, d, nullptr, nullptr);
     dItem->setEnabled(false);
     dItem->setPosition({ -330.f, y - 18.f });
     menu->addChild(dItem);
@@ -53,7 +53,7 @@ static void addRow(CCMenu* menu, const char* name, const char* desc,
     auto* tLbl = CCLabelBMFont::create(enabled ? "ON" : "OFF", "bigFont.fnt");
     tLbl->setScale(0.5f);
     tLbl->setColor(enabled ? ccColor3B{120, 220, 120} : ccColor3B{200, 90, 90});
-    auto* tItem = CCMenuItemSpriteExt::create(tLbl, tLbl, nullptr, nullptr);
+    auto* tItem = CCMenuItemSpriteExtra::create(tLbl, tLbl, nullptr, nullptr);
     tItem->setEnabled(false);
     tItem->setPosition({ 120.f, y });
     menu->addChild(tItem);

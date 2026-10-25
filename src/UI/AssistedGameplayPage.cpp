@@ -53,7 +53,7 @@ bool AssistedGameplayPage::init() {
     enLbl->setScale(0.7f);
     enLbl->setColor(kAccentColor);
     enLbl->setAnchorPoint({0.f, 0.5f});
-    auto* enItem = CCMenuItemSpriteExt::create(enLbl, enLbl, nullptr, nullptr);
+    auto* enItem = CCMenuItemSpriteExtra::create(enLbl, enLbl, nullptr, nullptr);
     enItem->setEnabled(false);
     enItem->setPosition({ -170.f, kTopY });
     menu->addChild(enItem);
@@ -63,7 +63,7 @@ bool AssistedGameplayPage::init() {
     m_statusLabel->setScale(0.55f);
     m_statusLabel->setColor(kLabelColor);
     m_statusLabel->setAnchorPoint({0.f, 0.5f});
-    auto* sItem = CCMenuItemSpriteExt::create(m_statusLabel, m_statusLabel,
+    auto* sItem = CCMenuItemSpriteExtra::create(m_statusLabel, m_statusLabel,
         nullptr, nullptr);
     sItem->setEnabled(false);
     sItem->setPosition({ -330.f, kTopY - 30.f });
@@ -74,7 +74,7 @@ bool AssistedGameplayPage::init() {
     m_reasonLabel->setScale(0.5f);
     m_reasonLabel->setColor({255, 220, 90});
     m_reasonLabel->setAnchorPoint({0.f, 0.5f});
-    auto* rItem = CCMenuItemSpriteExt::create(m_reasonLabel, m_reasonLabel,
+    auto* rItem = CCMenuItemSpriteExtra::create(m_reasonLabel, m_reasonLabel,
         nullptr, nullptr);
     rItem->setEnabled(false);
     rItem->setPosition({ -330.f, kTopY - 56.f });
@@ -85,7 +85,7 @@ bool AssistedGameplayPage::init() {
     stratLbl->setScale(0.55f);
     stratLbl->setColor(kLabelColor);
     stratLbl->setAnchorPoint({0.f, 0.5f});
-    auto* slItem = CCMenuItemSpriteExt::create(stratLbl, stratLbl, nullptr, nullptr);
+    auto* slItem = CCMenuItemSpriteExtra::create(stratLbl, stratLbl, nullptr, nullptr);
     slItem->setEnabled(false);
     slItem->setPosition({ -330.f, kTopY - 92.f });
     menu->addChild(slItem);
@@ -94,20 +94,20 @@ bool AssistedGameplayPage::init() {
     m_strategyLabel->setScale(0.55f);
     m_strategyLabel->setColor(kAccentColor);
     m_strategyLabel->setAnchorPoint({0.5f, 0.5f});
-    auto* sVal = CCMenuItemSpriteExt::create(m_strategyLabel, m_strategyLabel,
+    auto* sVal = CCMenuItemSpriteExtra::create(m_strategyLabel, m_strategyLabel,
         nullptr, nullptr);
     sVal->setEnabled(false);
     sVal->setPosition({ -120.f, kTopY - 92.f });
     menu->addChild(sVal);
 
-    auto* leftBtn = CCMenuItemSpriteExt::create(
+    auto* leftBtn = CCMenuItemSpriteExtra::create(
         CCLabelBMFont::create("<", "bigFont.fnt"),
         CCLabelBMFont::create("<", "bigFont.fnt"),
         this, menu_selector(AssistedGameplayPage::onStrategyLeft));
     leftBtn->setPosition({ -180.f, kTopY - 92.f });
     menu->addChild(leftBtn);
 
-    auto* rightBtn = CCMenuItemSpriteExt::create(
+    auto* rightBtn = CCMenuItemSpriteExtra::create(
         CCLabelBMFont::create(">", "bigFont.fnt"),
         CCLabelBMFont::create(">", "bigFont.fnt"),
         this, menu_selector(AssistedGameplayPage::onStrategyRight));
@@ -119,7 +119,7 @@ bool AssistedGameplayPage::init() {
     laLbl->setScale(0.55f);
     laLbl->setColor(kLabelColor);
     laLbl->setAnchorPoint({0.f, 0.5f});
-    auto* laItem = CCMenuItemSpriteExt::create(laLbl, laLbl, nullptr, nullptr);
+    auto* laItem = CCMenuItemSpriteExtra::create(laLbl, laLbl, nullptr, nullptr);
     laItem->setEnabled(false);
     laItem->setPosition({ -330.f, kTopY - 122.f });
     menu->addChild(laItem);
@@ -128,20 +128,20 @@ bool AssistedGameplayPage::init() {
     m_lookaheadLabel->setScale(0.55f);
     m_lookaheadLabel->setColor(kAccentColor);
     m_lookaheadLabel->setAnchorPoint({0.5f, 0.5f});
-    auto* laVal = CCMenuItemSpriteExt::create(m_lookaheadLabel, m_lookaheadLabel,
+    auto* laVal = CCMenuItemSpriteExtra::create(m_lookaheadLabel, m_lookaheadLabel,
         nullptr, nullptr);
     laVal->setEnabled(false);
     laVal->setPosition({ -120.f, kTopY - 122.f });
     menu->addChild(laVal);
 
-    auto* laMinus = CCMenuItemSpriteExt::create(
+    auto* laMinus = CCMenuItemSpriteExtra::create(
         CCLabelBMFont::create("-", "bigFont.fnt"),
         CCLabelBMFont::create("-", "bigFont.fnt"),
         this, menu_selector(AssistedGameplayPage::onLookaheadMinus));
     laMinus->setPosition({ -180.f, kTopY - 122.f });
     menu->addChild(laMinus);
 
-    auto* laPlus = CCMenuItemSpriteExt::create(
+    auto* laPlus = CCMenuItemSpriteExtra::create(
         CCLabelBMFont::create("+", "bigFont.fnt"),
         CCLabelBMFont::create("+", "bigFont.fnt"),
         this, menu_selector(AssistedGameplayPage::onLookaheadPlus));
@@ -162,7 +162,7 @@ bool AssistedGameplayPage::init() {
     ovLbl->setScale(0.55f);
     ovLbl->setColor(kLabelColor);
     ovLbl->setAnchorPoint({0.f, 0.5f});
-    auto* ovItem = CCMenuItemSpriteExt::create(ovLbl, ovLbl, nullptr, nullptr);
+    auto* ovItem = CCMenuItemSpriteExtra::create(ovLbl, ovLbl, nullptr, nullptr);
     ovItem->setEnabled(false);
     ovItem->setPosition({ -170.f, kTopY - 154.f });
     menu->addChild(ovItem);
@@ -181,13 +181,13 @@ bool AssistedGameplayPage::init() {
     dbgLbl->setScale(0.55f);
     dbgLbl->setColor(kLabelColor);
     dbgLbl->setAnchorPoint({0.f, 0.5f});
-    auto* dbgItem = CCMenuItemSpriteExt::create(dbgLbl, dbgLbl, nullptr, nullptr);
+    auto* dbgItem = CCMenuItemSpriteExtra::create(dbgLbl, dbgLbl, nullptr, nullptr);
     dbgItem->setEnabled(false);
     dbgItem->setPosition({ -170.f, kTopY - 184.f });
     menu->addChild(dbgItem);
 
     // === Row 8: Emergency stop ==============================================
-    auto* esBtn = CCMenuItemSpriteExt::create(
+    auto* esBtn = CCMenuItemSpriteExtra::create(
         CCLabelBMFont::create("STOP NOW (F8)", "bigFont.fnt"),
         CCLabelBMFont::create("STOP NOW (F8)", "bigFont.fnt"),
         this, menu_selector(AssistedGameplayPage::onEmergencyStop));

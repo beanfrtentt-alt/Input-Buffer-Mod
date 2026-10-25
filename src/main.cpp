@@ -11,7 +11,7 @@
  *      that the mod loaded.
  *
  * The actual gameplay hooks (`PlayLayer`, `PlayerObject`,
- * `KeyboardEventDispatcher`) are activated by `$modify` blocks in their
+ * `CCKeyboardDispatcher`) are activated by `$modify` blocks in their
  * respective hook .cpp files. Geode v5 auto-registers every `$modify`
  * block at static-init time, so there's no central `register_()` call
  * needed.

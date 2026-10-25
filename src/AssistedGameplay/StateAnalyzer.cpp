@@ -5,10 +5,9 @@
  *
  * The key calls in here are the ones that have historically been broken in
  * GD mods:
- *  * `PlayerObject::m_isOnGround` — historically a bitfield on the GD side,
- *    exposed as a bool via Geode binding.
- *  * `PlayerObject::m_gamemode` — int member that maps 1:1 to our `Gamemode`
- *    enum.
+ *  * PlayerObject mode flags identify the current gamemode.
+ *  * PlayerObject velocity and orientation are read through fields/methods
+ *    exposed by the GD 2.2081 Geode bindings.
  *  * `GameObject::m_objectID` — int; ranges used to detect spikes / saws /
  *    blocks are documented inline.
  */
@@ -22,7 +21,6 @@
 #include <Geode/binding/GameObject.hpp>
 #include <Geode/binding/GJGameLevel.hpp>
 #include <Geode/binding/GameStatsManager.hpp>
-#include <Geode/binding/LevelEditorObject.hpp> // for object-id constants where available
 
 using namespace geode;
 using namespace geode::prelude;
@@ -89,30 +87,37 @@ PlayerState StateAnalyzer::analyzePlayer(PlayerObject* p, bool isPlayer2) {
     // the player object's own position member if the transform is unavailable.
     s.pos.x = p->m_position.x;
     s.pos.y = p->m_position.y;
-    s.velocity.x = p->m_xVel;
-    s.velocity.y = p->m_yVel;
-    s.gamemode    = gamemodeFromInt(p->m_gamemode);
+    s.velocity.x = static_cast<float>(p->getCurrentXVelocity());
+    s.velocity.y = static_cast<float>(p->getYVelocity());
+    s.gamemode = Gamemode::Cube;
+    if (p->m_isShip) s.gamemode = Gamemode::Ship;
+    else if (p->m_isBall) s.gamemode = Gamemode::Ball;
+    else if (p->m_isBird) s.gamemode = Gamemode::UFO;
+    else if (p->m_isDart) s.gamemode = Gamemode::Wave;
+    else if (p->m_isRobot) s.gamemode = Gamemode::Robot;
+    else if (p->m_isSpider) s.gamemode = Gamemode::Spider;
+    else if (p->m_isSwing) s.gamemode = Gamemode::Swing;
     s.onGround    = p->m_isOnGround;
-    s.onCeiling   = p->m_isOnGroundTop; // bool member in the GD bindings
+    // The current public bindings do not expose a reliable ceiling-contact
+    // flag, so leave this false instead of reading a guessed field name.
+    s.onCeiling   = false;
     s.isDead      = p->m_isDead;
-    s.isDual      = p->m_isDualMode;
+    s.isDual      = false;
+    if (auto* pl = PlayLayer::get()) {
+        s.isDual = pl->m_player2 && pl->m_player2->isVisible();
+    }
     s.isPlayer2   = isPlayer2;
-    s.gravityInverted = p->m_isGravityFlipped;
-    s.rotation    = p->m_rotation;
+    s.gravityInverted = p->m_isUpsideDown;
+    s.rotation    = p->getRotation();
     return s;
 }
 
 int64_t StateAnalyzer::currentFrame() {
     if (auto pl = PlayLayer::get()) {
-        // GJBaseGameLayer tracks a 60Hz "frame" via the game's time delta; the
-        // gameplay step counter is `m_gameState.m_currentProgress` for time
-        // but a simpler tick is `m_stepCounter` (introduced in GD 2.2). Use
-        // the elapsed time in milliseconds as a fallback for older versions.
-        if (pl->m_gameState) {
-            // m_timeAndStreak are time in seconds; multiply by ~240 to
-            // approximate the 240 Hz step counter (the rate GD physics runs
-            // at when playing). This is close enough for buffer scheduling.
-            return static_cast<int64_t>(pl->m_gameState->m_time * 240.f);
+        // PlayerObject exposes elapsed gameplay time in the 2.2081 bindings.
+        // Scale to the planner's approximate 240 Hz tick unit.
+        if (pl->m_player1) {
+            return static_cast<int64_t>(pl->m_player1->m_totalTime * 240.0);
         }
     }
     return -1;
@@ -122,10 +127,12 @@ std::optional<Hazard> StateAnalyzer::hazardFromObject(GameObject* obj) {
     if (!obj) return std::nullopt;
     int id = obj->m_objectID;
     Hazard h{};
-    h.pos.x  = obj->m_position.x;
-    h.pos.y  = obj->m_position.y;
-    h.size.x = obj->m_contentSize.width  * 0.5f;
-    h.size.y = obj->m_contentSize.height * 0.5f;
+    auto position = obj->getPosition();
+    auto contentSize = obj->getContentSize();
+    h.pos.x  = position.x;
+    h.pos.y  = position.y;
+    h.size.x = contentSize.width  * 0.5f;
+    h.size.y = contentSize.height * 0.5f;
     h.objectId = id;
     if (isSpike(id))         h.type = HazardType::Spike;
     else if (isSawblade(id)) h.type = HazardType::Sawblade;
@@ -141,8 +148,9 @@ Snapshot StateAnalyzer::analyze(PlayLayer* playLayer) {
     Snapshot snap{};
     if (!playLayer) return snap;
     // `PlayLayer` extends `GJBaseGameLayer` in the GD binding, so the
-    // base-class members (m_player1, m_player2, m_objects, m_gameState) are
-    // directly accessible without a cast.
+    // base-class members (m_player1, m_player2, m_objects) are directly
+    // accessible without a cast. PlayLayer::m_maxObjectX is used as the
+    // level-length estimate available in the 2.2081 bindings.
 
     // Pull players from the binding. `m_player1` and `m_player2` are
     // Ref<GameObject> members on GJBaseGameLayer.
@@ -153,38 +161,36 @@ Snapshot StateAnalyzer::analyze(PlayLayer* playLayer) {
     // fall back to a manual computation from player X / level length.
     {
         float prog = 0.f;
-        if (playLayer->m_level && playLayer->m_level->m_levelLength > 0.f) {
+        if (playLayer->m_maxObjectX > 0.f) {
             float px = playLayer->m_player1 ? playLayer->m_player1->m_position.x : 0.f;
-            prog = px / static_cast<float>(playLayer->m_level->m_levelLength);
+            prog = px / playLayer->m_maxObjectX;
         }
         if (prog < 0.f) prog = 0.f;
         if (prog > 1.f) prog = 1.f;
         snap.level.progress = prog;
     }
-    snap.level.levelLength     = playLayer->m_level ? playLayer->m_level->m_levelLength : 0.f;
+    snap.level.levelLength     = playLayer->m_maxObjectX;
     snap.level.dualActive      = playLayer->m_player2 && playLayer->m_player2->isVisible();
-    snap.level.completed       = playLayer->m_levelCompleted;
+    snap.level.completed       = playLayer->m_hasCompletedLevel;
     snap.level.levelExited     = false;
     snap.level.frame           = currentFrame();
 
-    // Speed: GD exposes a per-frame delta and an `m_speed` member that's a
-    // float in {0.5, 0.8, 1, 1.2, 2, 3} for the various speed portals.
-    // On GD 2.2 / Geode v4, the active speed multiplier lives on
-    // PlayLayerGameState; fall back to 1.f if the binding exposes neither
-    // (older Geode revisions had `PlayLayer::m_speed`).
-    snap.level.speedMultiplier = 1.f;
-    if (playLayer->m_gameState) {
-        snap.level.speedMultiplier = playLayer->m_gameState->m_playerSpeed;
-    }
+    // The active speed value is exposed on PlayerObject in the 2.2081
+    // bindings. Use 1.0 if no player is available or the value is invalid.
+    snap.level.speedMultiplier = playLayer->m_player1
+        ? playLayer->m_player1->m_playerSpeed
+        : 1.f;
     if (snap.level.speedMultiplier <= 0.f) snap.level.speedMultiplier = 1.f;
 
     // Hazards: ask LevelAnalyzer for the cached slice ahead of the player.
-    LevelAnalyzer::get().forEachHazardAhead(
-        playLayer->m_player1->m_position.x,
-        /*lookaheadX=*/snap.level.speedMultiplier * 4.f,
-        [&](const Hazard& h) {
-            snap.nearbyHazards.push_back(h);
-        });
+    if (playLayer->m_player1) {
+        LevelAnalyzer::get().forEachHazardAhead(
+            playLayer->m_player1->m_position.x,
+            /*lookaheadX=*/snap.level.speedMultiplier * 4.f,
+            [&](const Hazard& h) {
+                snap.nearbyHazards.push_back(h);
+            });
+    }
 
     return snap;
 }

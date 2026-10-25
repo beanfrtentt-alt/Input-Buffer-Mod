@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Full history isn't needed for a single build; shallow is
           # faster and uses less cache.
@@ -83,17 +83,24 @@ jobs:
             Write-Error "Build action did not produce a build-output path."
             exit 1
           }
-          if (-not (Test-Path $env:BUILD_OUTPUT)) {
-            Write-Error "Build output file does not exist at: $env:BUILD_OUTPUT"
+          if (-not (Test-Path $env:BUILD_OUTPUT -PathType Container)) {
+            Write-Error "Build output directory does not exist: $env:BUILD_OUTPUT"
             exit 1
           }
-          $size = (Get-Item $env:BUILD_OUTPUT).Length
-          Write-Host "Build output size: $size bytes"
+          $package = Get-ChildItem -Path $env:BUILD_OUTPUT -Filter '*.geode' -File -Recurse | Select-Object -First 1
+          if (-not $package) {
+            Write-Error "No .geode package was found inside: $env:BUILD_OUTPUT"
+            Get-ChildItem -Path $env:BUILD_OUTPUT -Recurse | ForEach-Object { Write-Host $_.FullName }
+            exit 1
+          }
+          $size = $package.Length
+          Write-Host "Package: $($package.FullName)"
+          Write-Host "Package size: $size bytes"
           if ($size -lt 1024) {
-            Write-Error "Build output is suspiciously small ($size bytes). Likely an empty package."
+            Write-Error "Build output package is suspiciously small ($size bytes)."
             exit 1
           }
-          Write-Host "OK: $env:BUILD_OUTPUT exists and is $size bytes."
+          Write-Host "OK: $($package.Name) exists and is $size bytes."
 
       - name: Determine artifact filename
         id: filename
@@ -108,7 +115,7 @@ jobs:
           "name=$name" >> $env:GITHUB_OUTPUT
 
       - name: Upload the .geode artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.filename.outputs.name }}
           # The build-output path from build-geode-mod may point at a

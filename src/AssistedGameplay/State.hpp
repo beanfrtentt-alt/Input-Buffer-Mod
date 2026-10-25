@@ -62,13 +62,13 @@ struct PlayerState {
 struct LevelState {
     // 0..1 fraction of the level the player has already passed.
     float       progress        = 0.f;
-    // Total length in world units (PlayLayer::m_levelLength).
+    // Estimated level length in world units (PlayLayer::m_maxObjectX).
     float       levelLength     = 0.f;
     // Active speed multiplier (1x = 311.58 u/frame for cube on normal speed).
     float       speedMultiplier = 1.f;
     // True when the level is currently in a dual portal section.
     bool        dualActive      = false;
-    // True when the level has been completed (PlayLayer::m_levelCompleted).
+    // True when the level has been completed (PlayLayer::m_hasCompletedLevel).
     bool        completed       = false;
     // True when PlayLayer has been destroyed (level exit).
     bool        levelExited     = false;

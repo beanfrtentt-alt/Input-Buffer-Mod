@@ -12,6 +12,8 @@
  */
 #pragma once
 #include <Geode/Geode.hpp>
+#include <cstdint>
+#include <optional>
 #include "State.hpp"
 
 // Forward-declare at global scope — Geode v4 binding classes live in the

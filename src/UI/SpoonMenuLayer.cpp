@@ -49,7 +49,7 @@ bool SpoonMenuLayer::init() {
     addChild(dim, 0);
 
     // Panel: 720 x 540 centered. CCScale9Sprite gives us rounded corners.
-    m_panel = CCScale9Sprite::create("GJ_button_05.png"_spr,
+    m_panel = cocos2d::extension::CCScale9Sprite::create("GJ_button_05.png"_spr,
         CCRect(0, 0, 80, 80));
     m_panel->setColor({ 24, 26, 32 });
     m_panel->setOpacity(240);
@@ -66,7 +66,7 @@ bool SpoonMenuLayer::init() {
 
     // Close button (top-right of panel)
     auto* closeSpr = CCSprite::createWithSpriteFrameName("GJ_closeBtn_001.png");
-    auto* closeBtn = CCMenuItemSpriteExt::create(
+    auto* closeBtn = CCMenuItemSpriteExtra::create(
         closeSpr, closeSpr,
         this, menu_selector(SpoonMenuLayer::onClose));
     closeBtn->setPosition({ 720.f * 0.5f - 22.f, 540.f * 0.5f - 22.f });
@@ -82,7 +82,7 @@ bool SpoonMenuLayer::init() {
     // Helper: build a tab button pointing at a member-function selector.
     // The tab index is stashed on the button's tag.
     auto makeTabBtn = [this](const char* text, int idx, SEL_MenuHandler sel) {
-        auto* b = CCMenuItemSpriteExt::create(
+        auto* b = CCMenuItemSpriteExtra::create(
             CCLabelBMFont::create(text, "bigFont.fnt"),
             CCLabelBMFont::create(text, "bigFont.fnt"),
             this, sel);

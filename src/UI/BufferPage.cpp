@@ -40,13 +40,13 @@ bool BufferPage::init() {
     return true;
 }
 
-static CCMenuItemSpriteExt* makeBtn(const char* text, float scale,
+static CCMenuItemSpriteExtra* makeBtn(const char* text, float scale,
                                      CCObject* target, SEL_MenuHandler sel) {
     auto* l = CCLabelBMFont::create(text, "bigFont.fnt");
     l->setScale(scale);
-    auto* bg = CCScale9Sprite::create("GJ_button_01.png"_spr);
+    auto* bg = cocos2d::extension::CCScale9Sprite::create("GJ_button_01.png"_spr);
     bg->setContentSize({ 26.f, 22.f });
-    return CCMenuItemSpriteExt::create(bg, bg, target, sel);
+    return CCMenuItemSpriteExtra::create(bg, bg, target, sel);
 }
 
 void BufferPage::buildRows() {
@@ -72,7 +72,7 @@ void BufferPage::buildRows() {
         nameLbl->setScale(0.6f);
         nameLbl->setColor(kAccentColor);
         nameLbl->setAnchorPoint({0.f, 0.5f});
-        auto* nameItem = CCMenuItemSpriteExt::create(nameLbl, nameLbl, nullptr, nullptr);
+        auto* nameItem = CCMenuItemSpriteExtra::create(nameLbl, nameLbl, nullptr, nullptr);
         nameItem->setPosition({ -330.f, y });
         nameItem->setEnabled(false);
         menu->addChild(nameItem);
@@ -92,7 +92,7 @@ void BufferPage::buildRows() {
         fLbl->setScale(0.55f);
         fLbl->setColor(kLabelColor);
         fLbl->setAnchorPoint({0.5f, 0.5f});
-        auto* fItem = CCMenuItemSpriteExt::create(fLbl, fLbl, nullptr, nullptr);
+        auto* fItem = CCMenuItemSpriteExtra::create(fLbl, fLbl, nullptr, nullptr);
         fItem->setEnabled(false);
         fItem->setPosition({ -60.f, y });
         menu->addChild(fItem);

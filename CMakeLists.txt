@@ -1,17 +1,12 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 
 # Geode v5 requires C++23.
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-# Support both 32-bit (legacy GD/Geode target) and 64-bit (newer GD)
-# architectures on macOS; harmless on Windows.
-if ("${CMAKE_SYSTEM_NAME}" STREQUAL "iOS" OR IOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64")
-else()
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
-endif()
+# The current workflow targets Windows x64. The Geode build action sets
+# platform-specific toolchain options; do not set Apple architecture flags here.
 
 project(SpoonClient
     VERSION 2.0.0

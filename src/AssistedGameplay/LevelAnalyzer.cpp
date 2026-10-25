@@ -33,15 +33,10 @@ void LevelAnalyzer::rebuild(PlayLayer* playLayer) {
     m_valid = false;
     if (!playLayer) return;
 
-    // GJBaseGameLayer holds the level objects in `m_objects`. The container
-    // type in the GD binding is `cocos2d::CCArray*`. PlayLayer derives from
-    // GJBaseGameLayer so the member is directly accessible.
-    auto* arr = playLayer->m_objects;
-    if (!arr) return;
-
+    // In the GD 2.2081 bindings, m_objects is a vector of GameObject
+    // pointers rather than a cocos2d::CCArray.
     StateAnalyzer sa;
-    for (std::size_t i = 0; i < arr->count(); ++i) {
-        auto* go = static_cast<GameObject*>(arr->objectAtIndex(i));
+    for (auto* go : playLayer->m_objects) {
         if (auto h = sa.hazardFromObject(go)) {
             m_hazards.push_back(*h);
         }

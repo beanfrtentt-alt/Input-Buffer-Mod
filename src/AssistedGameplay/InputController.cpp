@@ -16,7 +16,7 @@
  * the planner issues a wantRelease.
  */
 #include "InputController.hpp"
-#include "../../BufferManager.hpp"
+#include "../BufferManager.hpp"
 #include <utility>
 
 namespace spoon::ag {

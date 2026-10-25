@@ -2,7 +2,7 @@
  * SpoonClient / Hooks/PlayerObjectHook.cpp
  *
  * `$modify` block for PlayerObject. Catches:
- *  * update        — tracks m_gamemode transitions (portals) so the
+ *  * update        — tracks mode-flag transitions (portals) so the
  *                    BufferManager reloads the right per-gamemode profile.
  *  * pushButton    — routes the human player's "press" event through the
  *                    BufferManager so AG and the human share a single
@@ -31,38 +31,47 @@ class $modify(SpoonPlayerObject, PlayerObject) {
     void update(float dt) {
         PlayerObject::update(dt);
 
-        bool isP2 = m_isPlayer2;
-        spoon::Gamemode now = spoon::gamemodeFromInt(m_gamemode);
+        bool isP2 = m_isSecondPlayer;
+        spoon::Gamemode now = spoon::Gamemode::Cube;
+        if (m_isShip) now = spoon::Gamemode::Ship;
+        else if (m_isBall) now = spoon::Gamemode::Ball;
+        else if (m_isBird) now = spoon::Gamemode::UFO;
+        else if (m_isDart) now = spoon::Gamemode::Wave;
+        else if (m_isRobot) now = spoon::Gamemode::Robot;
+        else if (m_isSpider) now = spoon::Gamemode::Spider;
+        else if (m_isSwing) now = spoon::Gamemode::Swing;
         if (now != spoon::Gamemode::Unknown && s_lastGm[isP2 ? 1 : 0] != now) {
             s_lastGm[isP2 ? 1 : 0] = now;
             spoon::BufferManager::get().onGamemodeChange(isP2, now);
         }
     }
 
-    void pushButton(int button) {
-        // Pre-flight: route through buffer FIRST so the buffer is updated
-        // before GD's own pipeline sees the press (we still call the
-        // original afterwards).
-        bool isP2 = m_isPlayer2;
+    bool pushButton(PlayerButton button) {
+        bool isP2 = m_isSecondPlayer;
         int64_t frame = spoon::ag::StateAnalyzer::get().currentFrame();
-        bool isHold = !spoon::gamemodeSupportsBufferHold(
-            spoon::gamemodeFromInt(m_gamemode));
+        spoon::Gamemode mode = spoon::Gamemode::Cube;
+        if (m_isShip) mode = spoon::Gamemode::Ship;
+        else if (m_isBall) mode = spoon::Gamemode::Ball;
+        else if (m_isBird) mode = spoon::Gamemode::UFO;
+        else if (m_isDart) mode = spoon::Gamemode::Wave;
+        else if (m_isRobot) mode = spoon::Gamemode::Robot;
+        else if (m_isSpider) mode = spoon::Gamemode::Spider;
+        else if (m_isSwing) mode = spoon::Gamemode::Swing;
+        bool isHold = !spoon::gamemodeSupportsBufferHold(mode);
         spoon::BufferManager::get().queueInput(isP2, isHold, frame);
-
-        PlayerObject::pushButton(button);
+        return PlayerObject::pushButton(button);
     }
 
-    void releaseButton(int button) {
-        bool isP2 = m_isPlayer2;
+    bool releaseButton(PlayerButton button) {
+        bool isP2 = m_isSecondPlayer;
         int64_t frame = spoon::ag::StateAnalyzer::get().currentFrame();
         spoon::BufferManager::get().releaseInput(isP2, frame);
-
-        PlayerObject::releaseButton(button);
+        return PlayerObject::releaseButton(button);
     }
 
-    void playerDeath() {
-        bool isP2 = m_isPlayer2;
+    void playerDestroyed(bool noEffects) {
+        bool isP2 = m_isSecondPlayer;
         spoon::BufferManager::get().onDeath(isP2);
-        PlayerObject::playerDeath();
+        PlayerObject::playerDestroyed(noEffects);
     }
 };

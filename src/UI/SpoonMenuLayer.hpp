@@ -69,7 +69,7 @@ private:
     cocos2d::CCMenu*           m_tabMenu   = nullptr;
     cocos2d::CCLabelBMFont*    m_titleLbl  = nullptr;
     cocos2d::CCLabelBMFont*    m_footerLbl = nullptr;
-    cocos2d::CCScale9Sprite*   m_panel     = nullptr;
+    cocos2d::extension::CCScale9Sprite*   m_panel     = nullptr;
 
     BufferPage*             m_bufferPage = nullptr;
     AssistedGameplayPage*   m_agPage     = nullptr;
